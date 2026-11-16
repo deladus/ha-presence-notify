@@ -1,7 +1,7 @@
 # Changelog
 
 ## 0.3.1b1 (beta)
-- Rooms: optional hold time – a room still counts as occupied for X minutes after its presence entities went off (announcements and questions only). Questions go to the room with the most recent detection
+- Rooms: optional presence cooldown – a room still counts as occupied for X minutes after its presence entities went off (announcements and questions only). Questions go to the room with the most recent detection
 - Rooms: `remote` entities (e.g. Harmony Hub) can be used as presence entities
 - `presence_notify.send`: new field `actions` to add push buttons in the editor (title, optional ID, optional link) without writing YAML
 - Fix iOS: high priority now uses `interruption-level: time-sensitive` (the previous key had no effect on iOS); a custom `push` block in `data` is merged instead of replacing it

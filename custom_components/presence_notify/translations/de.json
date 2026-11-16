@@ -51,11 +51,11 @@
           "presence": "Anwesenheits-Entitäten",
           "return_room": "Heimkehr-Raum",
           "add_another": "Weiteren Raum hinzufügen",
-          "hold_minutes": "Nachlaufzeit"
+          "hold_minutes": "Abklingzeit der Anwesenheit (Minuten)"
         },
         "data_description": {
           "return_room": "Nach der Heimkehr werden verpasste Nachrichten zugestellt, sobald in einem Heimkehr-Raum Bewegung erkannt wird – auf dem Lautsprecher dieses Raums.",
-          "hold_minutes": "Optional: Der Raum gilt so viele Minuten nach dem Abschalten seiner Anwesenheits-Entitäten noch als belegt – nur für Ansagen und Rückfragen. 0 = aus. Praktisch für Melder ohne einstellbare Abklingzeit."
+          "hold_minutes": "Wie lange der Raum nach dem letzten Signal seiner Anwesenheits-Entitäten noch als belegt gilt – nur für Ansagen und Rückfragen, andere Automationen sind nicht betroffen. 0 = aus: Der Raum gilt nur als belegt, solange eine Entität gerade aktiv ist (keine zusätzliche Abklingzeit, es geht also nicht sofort etwas aus). Praktisch für Melder, deren Abklingzeit sich nicht einstellen lässt."
         }
       },
       "home_states": {
@@ -141,10 +141,10 @@
           "speaker": "Lautsprecher",
           "presence": "Anwesenheits-Entitäten",
           "return_room": "Heimkehr-Raum",
-          "hold_minutes": "Nachlaufzeit"
+          "hold_minutes": "Abklingzeit der Anwesenheit (Minuten)"
         },
         "data_description": {
-          "hold_minutes": "Optional: Der Raum gilt so viele Minuten nach dem Abschalten seiner Anwesenheits-Entitäten noch als belegt – nur für Ansagen und Rückfragen. 0 = aus. Praktisch für Melder ohne einstellbare Abklingzeit."
+          "hold_minutes": "Wie lange der Raum nach dem letzten Signal seiner Anwesenheits-Entitäten noch als belegt gilt – nur für Ansagen und Rückfragen, andere Automationen sind nicht betroffen. 0 = aus: Der Raum gilt nur als belegt, solange eine Entität gerade aktiv ist (keine zusätzliche Abklingzeit, es geht also nicht sofort etwas aus). Praktisch für Melder, deren Abklingzeit sich nicht einstellen lässt."
         }
       },
       "edit_room": {
@@ -160,10 +160,10 @@
           "speaker": "Lautsprecher",
           "presence": "Anwesenheits-Entitäten",
           "return_room": "Heimkehr-Raum",
-          "hold_minutes": "Nachlaufzeit"
+          "hold_minutes": "Abklingzeit der Anwesenheit (Minuten)"
         },
         "data_description": {
-          "hold_minutes": "Optional: Der Raum gilt so viele Minuten nach dem Abschalten seiner Anwesenheits-Entitäten noch als belegt – nur für Ansagen und Rückfragen. 0 = aus. Praktisch für Melder ohne einstellbare Abklingzeit."
+          "hold_minutes": "Wie lange der Raum nach dem letzten Signal seiner Anwesenheits-Entitäten noch als belegt gilt – nur für Ansagen und Rückfragen, andere Automationen sind nicht betroffen. 0 = aus: Der Raum gilt nur als belegt, solange eine Entität gerade aktiv ist (keine zusätzliche Abklingzeit, es geht also nicht sofort etwas aus). Praktisch für Melder, deren Abklingzeit sich nicht einstellen lässt."
         }
       },
       "remove_room": {

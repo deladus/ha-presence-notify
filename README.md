@@ -42,8 +42,8 @@ Speakers: Alexa Media Player devices are announced directly via `notify.alexa_me
 1. **General:** quiet hours, optional **home source**, optional AI task entity, optional TTS engine.
    The home source can be a house mode select (e.g. `Home / Away / Vacation`), an "anyone home" sensor or an alarm panel. You pick which states mean "home". If set, it decides whether notifications are stored. The persons then only define who gets push notifications (if none of them is tracked as home, all of them get it).
 2. **Persons:** pick persons, then the notify service for each of them (tip: a notify group with all of a person's devices).
-3. **Rooms:** name, speaker, presence entities, whether it is a return room, and an optional **hold time**. Presence entities can be any `binary_sensor`, `light`, `switch`, `media_player`, `remote`, `input_boolean` or `device_tracker`. `on`, `home` or `playing` counts as someone being there, so a TV, a Harmony Hub activity or a hobby room light can count too.
-   With a hold time, the room still counts as occupied for that many minutes after its presence entities went off – for announcements and questions only, your other automations are not affected. Useful for motion sensors that only send short pulses and have no adjustable cooldown. Questions go to the room with the most recent detection.
+3. **Rooms:** name, speaker, presence entities, whether it is a return room, and an optional **presence cooldown**. Presence entities can be any `binary_sensor`, `light`, `switch`, `media_player`, `remote`, `input_boolean` or `device_tracker`. `on`, `home` or `playing` counts as someone being there, so a TV, a Harmony Hub activity or a hobby room light can count too.
+   With a presence cooldown (0 = off), the room still counts as occupied for that many minutes after its presence entities went off – for announcements and questions only, your other automations are not affected. Useful for motion sensors that only send short pulses and have no adjustable cooldown. Questions go to the room with the most recent detection.
 
 Everything can be changed later via *Configure*.
 

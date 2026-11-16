@@ -51,11 +51,11 @@
           "presence": "Presence entities",
           "return_room": "Return room",
           "add_another": "Add another room",
-          "hold_minutes": "Hold time"
+          "hold_minutes": "Presence cooldown (minutes)"
         },
         "data_description": {
           "return_room": "After coming home, missed notifications are delivered as soon as motion is detected in one of the return rooms, on that room's speaker.",
-          "hold_minutes": "Optional: the room still counts as occupied for this many minutes after its presence entities went off – for announcements and questions only. 0 = off. Handy for sensors without an adjustable cooldown."
+          "hold_minutes": "How long the room still counts as occupied after the last signal of its presence entities – for announcements and questions only, other automations are not affected. 0 = off: the room only counts as occupied while an entity is currently active (no extra cooldown). Handy for sensors whose cooldown cannot be adjusted."
         }
       },
       "home_states": {
@@ -141,10 +141,10 @@
           "speaker": "Speaker",
           "presence": "Presence entities",
           "return_room": "Return room",
-          "hold_minutes": "Hold time"
+          "hold_minutes": "Presence cooldown (minutes)"
         },
         "data_description": {
-          "hold_minutes": "Optional: the room still counts as occupied for this many minutes after its presence entities went off – for announcements and questions only. 0 = off. Handy for sensors without an adjustable cooldown."
+          "hold_minutes": "How long the room still counts as occupied after the last signal of its presence entities – for announcements and questions only, other automations are not affected. 0 = off: the room only counts as occupied while an entity is currently active (no extra cooldown). Handy for sensors whose cooldown cannot be adjusted."
         }
       },
       "edit_room": {
@@ -160,10 +160,10 @@
           "speaker": "Speaker",
           "presence": "Presence entities",
           "return_room": "Return room",
-          "hold_minutes": "Hold time"
+          "hold_minutes": "Presence cooldown (minutes)"
         },
         "data_description": {
-          "hold_minutes": "Optional: the room still counts as occupied for this many minutes after its presence entities went off – for announcements and questions only. 0 = off. Handy for sensors without an adjustable cooldown."
+          "hold_minutes": "How long the room still counts as occupied after the last signal of its presence entities – for announcements and questions only, other automations are not affected. 0 = off: the room only counts as occupied while an entity is currently active (no extra cooldown). Handy for sensors whose cooldown cannot be adjusted."
         }
       },
       "remove_room": {
