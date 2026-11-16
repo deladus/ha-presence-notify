@@ -206,3 +206,23 @@ async def test_single_message_and_ai_fallback(hass: HomeAssistant) -> None:
         await hass.services.async_call(DOMAIN, "send", {"title": "X", "message": msg}, blocking=True)
     await entry.runtime_data.async_deliver(["media_player.studio"])
     assert len(calls["ai"]) == 2  # two attempts
+
+
+async def test_input_boolean_as_person(hass: HomeAssistant) -> None:
+    calls = _register_services(hass)
+    hass.states.async_set("input_boolean.test_dennis", "off")
+    hass.states.async_set("binary_sensor.wz", "off")
+    entry = MockConfigEntry(domain=DOMAIN, data={}, options={
+        **OPTIONS, "tts_entity": "tts.test",
+        "persons": [{"person": "input_boolean.test_dennis", "notify": "notify.dennis_alle_geraete"}]})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    await hass.services.async_call(DOMAIN, "send", {"title": "X", "message": "a"}, blocking=True)
+    assert len(entry.runtime_data.pending) == 1
+    hass.states.async_set("input_boolean.test_dennis", "on")
+    await hass.async_block_till_done()
+    assert len(calls["push"]) == 1
+    hass.states.async_set("binary_sensor.wz", "on")
+    await hass.async_block_till_done()
+    assert calls["tts"][0].data["media_player_entity_id"] == ["media_player.studio"]

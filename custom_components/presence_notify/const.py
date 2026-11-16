@@ -30,6 +30,10 @@ DEFAULT_QUIET_START = "22:30:00"
 DEFAULT_QUIET_END = "08:00:00"
 DEFAULT_MAX_PENDING = 20
 
+# Person can also be a device_tracker or an input_boolean (on = home, handy for testing)
+PERSON_DOMAINS = ["person", "device_tracker", "input_boolean", "binary_sensor"]
+PERSON_HOME_STATES = {"home", "on"}
+
 # States that count as "someone is here" for presence entities of any domain
 PRESENCE_ON_STATES = {"on", "home", "playing", "detected", "occupied"}
 

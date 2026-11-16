@@ -24,6 +24,9 @@
         "description": "Who should receive push notifications when at home?",
         "data": {
           "persons": "Persons"
+        },
+        "data_description": {
+          "persons": "Person entities. For testing, an on/off helper also works (on = at home)."
         }
       },
       "person_notify": {
@@ -81,6 +84,9 @@
         "title": "Persons",
         "data": {
           "persons": "Persons"
+        },
+        "data_description": {
+          "persons": "Person entities. For testing, an on/off helper also works (on = at home)."
         }
       },
       "person_notify": {

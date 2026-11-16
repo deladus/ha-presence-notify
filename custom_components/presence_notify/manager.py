@@ -18,7 +18,6 @@ import re
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import STATE_HOME
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -48,6 +47,7 @@ from .const import (
     DEFAULT_QUIET_START,
     EVENT_DELIVERED,
     HIGH_PRIORITY_DATA,
+    PERSON_HOME_STATES,
     PRESENCE_ON_STATES,
     SIGNAL_UPDATE,
     STORAGE_KEY,
@@ -191,7 +191,7 @@ class PresenceNotifyManager:
     def someone_home(self) -> bool:
         return any(
             (state := self.hass.states.get(p[CONF_PERSON])) is not None
-            and state.state == STATE_HOME
+            and state.state in PERSON_HOME_STATES
             for p in self.persons
         )
 
@@ -200,7 +200,7 @@ class PresenceNotifyManager:
             p
             for p in self.persons
             if (state := self.hass.states.get(p[CONF_PERSON])) is not None
-            and state.state == STATE_HOME
+            and state.state in PERSON_HOME_STATES
         ]
 
     def _room_occupied(self, room: dict[str, Any]) -> bool | None:

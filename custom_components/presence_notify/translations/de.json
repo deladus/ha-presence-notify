@@ -24,6 +24,9 @@
         "description": "Wer soll Push-Nachrichten bekommen, wenn er zu Hause ist?",
         "data": {
           "persons": "Personen"
+        },
+        "data_description": {
+          "persons": "Personen-Entitäten. Zum Testen geht auch ein Ein/Aus-Helfer (an = zu Hause)."
         }
       },
       "person_notify": {
@@ -81,6 +84,9 @@
         "title": "Personen",
         "data": {
           "persons": "Personen"
+        },
+        "data_description": {
+          "persons": "Personen-Entitäten. Zum Testen geht auch ein Ein/Aus-Helfer (an = zu Hause)."
         }
       },
       "person_notify": {

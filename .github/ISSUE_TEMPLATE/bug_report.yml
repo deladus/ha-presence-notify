@@ -1,0 +1,32 @@
+name: Bug report / Fehler melden
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Thanks for testing the beta! / Danke fürs Testen der Beta!"
+  - type: input
+    id: version
+    attributes:
+      label: Integration version
+      placeholder: 0.2.0b1
+    validations:
+      required: true
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened / what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: "Enable debug logging for custom_components.presence_notify and paste relevant lines."
+      render: text

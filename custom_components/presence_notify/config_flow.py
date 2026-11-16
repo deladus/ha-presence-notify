@@ -36,6 +36,7 @@ from .const import (
     DEFAULT_QUIET_END,
     DEFAULT_QUIET_START,
     DOMAIN,
+    PERSON_DOMAINS,
 )
 
 CONF_ADD_ANOTHER = "add_another"
@@ -87,7 +88,7 @@ def _general_schema(full: bool) -> vol.Schema:
 PERSONS_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_PERSONS): selector.EntitySelector(
-            selector.EntitySelectorConfig(domain="person", multiple=True)
+            selector.EntitySelectorConfig(domain=PERSON_DOMAINS, multiple=True)
         )
     }
 )

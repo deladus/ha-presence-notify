@@ -2,6 +2,11 @@
 
 *Heimischer Nachrichtendienst* · domain `presence_notify`
 
+> [!WARNING]
+> **Early beta (0.2.0b1).** This integration is at the very beginning of its development. Expect bugs, breaking changes to settings and actions, and missing features. Please don't rely on it for important notifications yet, and report problems via [Issues](https://github.com/deladus/ha-presence-notify/issues).
+>
+> **Frühe Beta (0.2.0b1).** Die Integration steht noch ganz am Anfang. Fehler, inkompatible Änderungen an Einstellungen und Aktionen sowie fehlende Funktionen sind zu erwarten. Bitte noch nicht für wichtige Benachrichtigungen verwenden. Probleme gern über [Issues](https://github.com/deladus/ha-presence-notify/issues) melden.
+
 Notifications for Home Assistant that reach whoever is **at home and in earshot**, and don't get lost when nobody is home.
 
 *Deutsche Kurzbeschreibung weiter unten.*
@@ -31,6 +36,14 @@ Speakers: Alexa Media Player devices are announced directly via `notify.alexa_me
 3. **Rooms:** name, speaker, presence entities, and whether it is a return room. Presence entities can be any `binary_sensor`, `light`, `switch`, `media_player`, `input_boolean` or `device_tracker`. `on`, `home` or `playing` counts as someone being there, so a TV or a hobby room light can count too.
 
 Everything can be changed later via *Configure*.
+
+## Testing with helpers
+
+You can try everything without touching your real setup:
+
+1. Create on/off helpers, e.g. `input_boolean.dis_test_person` (on = at home) and `input_boolean.dis_test_motion`.
+2. In the setup, pick the person helper as "person" and the motion helper as presence entity of a return room.
+3. Switch the person helper off, send a few notifications, switch it on (push arrives), then switch the motion helper on (announcement plays).
 
 ## Actions
 
