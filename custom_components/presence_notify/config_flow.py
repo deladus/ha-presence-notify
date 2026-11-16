@@ -105,14 +105,34 @@ PERSONS_SCHEMA = vol.Schema(
 )
 
 
-def _room_schema(with_add_another: bool) -> vol.Schema:
+def _used_entities(rooms: list[dict[str, Any]], skip_index: int | None = None) -> tuple[list[str], list[str]]:
+    """Speakers and presence entities already used by other rooms."""
+    speakers: list[str] = []
+    presence: list[str] = []
+    for i, room in enumerate(rooms):
+        if i == skip_index:
+            continue
+        if room.get(CONF_SPEAKER):
+            speakers.append(room[CONF_SPEAKER])
+        presence.extend(room.get(CONF_PRESENCE) or [])
+    return speakers, presence
+
+
+def _room_schema(
+    with_add_another: bool,
+    rooms: list[dict[str, Any]] | None = None,
+    skip_index: int | None = None,
+) -> vol.Schema:
+    used_speakers, used_presence = _used_entities(rooms or [], skip_index)
     fields: dict[Any, Any] = {
         vol.Required(CONF_ROOM_NAME): selector.TextSelector(),
         vol.Optional(CONF_SPEAKER): selector.EntitySelector(
-            selector.EntitySelectorConfig(domain="media_player")
+            selector.EntitySelectorConfig(domain="media_player", exclude_entities=used_speakers)
         ),
         vol.Optional(CONF_PRESENCE, default=[]): selector.EntitySelector(
-            selector.EntitySelectorConfig(domain=PRESENCE_DOMAINS, multiple=True)
+            selector.EntitySelectorConfig(
+                domain=PRESENCE_DOMAINS, multiple=True, exclude_entities=used_presence
+            )
         ),
         vol.Required(CONF_RETURN_ROOM, default=False): selector.BooleanSelector(),
     }
@@ -232,14 +252,14 @@ class PresenceNotifyConfigFlow(_PersonsMixin, ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             self._opts[CONF_ROOMS].append(_clean_room(user_input))
             if user_input.get(CONF_ADD_ANOTHER):
-                return self.async_show_form(step_id="room", data_schema=_room_schema(True))
+                return self.async_show_form(step_id="room", data_schema=_room_schema(True, self._opts[CONF_ROOMS]))
             title = (
                 "Heimischer Nachrichtendienst"
                 if (self.hass.config.language or "").startswith("de")
                 else "Domestic Intelligence Service"
             )
             return self.async_create_entry(title=title, data={}, options=self._opts)
-        return self.async_show_form(step_id="room", data_schema=_room_schema(True))
+        return self.async_show_form(step_id="room", data_schema=_room_schema(True, self._opts[CONF_ROOMS]))
 
     @staticmethod
     @callback
@@ -321,7 +341,7 @@ class PresenceNotifyOptionsFlow(_PersonsMixin, OptionsFlow):
         if user_input is not None:
             self._opts[CONF_ROOMS].append(_clean_room(user_input))
             return self._save()
-        return self.async_show_form(step_id="add_room", data_schema=_room_schema(False))
+        return self.async_show_form(step_id="add_room", data_schema=_room_schema(False, self._opts[CONF_ROOMS]))
 
     def _room_choice_schema(self, multiple: bool) -> vol.Schema:
         options = [
@@ -348,7 +368,9 @@ class PresenceNotifyOptionsFlow(_PersonsMixin, OptionsFlow):
             self._opts[CONF_ROOMS][self._edit_index] = _clean_room(user_input)
             return self._save()
         room = self._opts[CONF_ROOMS][self._edit_index]
-        schema = self.add_suggested_values_to_schema(_room_schema(False), room)
+        schema = self.add_suggested_values_to_schema(
+            _room_schema(False, self._opts[CONF_ROOMS], self._edit_index), room
+        )
         return self.async_show_form(step_id="edit_room_details", data_schema=schema)
 
     async def async_step_remove_room(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:

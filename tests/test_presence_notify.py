@@ -353,3 +353,24 @@ async def test_several_images_grouped_pushes_and_cleanup(hass: HomeAssistant, tm
     async_fire_time_changed(hass, dt_util.utcnow())
     await hass.async_block_till_done()
     assert not any(os.path.exists(p) for p in written)
+
+
+async def test_room_selectors_hide_used_entities(hass: HomeAssistant) -> None:
+    _register_services(hass)
+    entry = await _setup(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "add_room"})
+    schema = result["data_schema"].schema
+    assert schema["speaker"].config["exclude_entities"] == [
+        "media_player.studio", "media_player.kueche", "media_player.schlaf"]
+    assert schema["presence"].config["exclude_entities"] == ["binary_sensor.wz", "binary_sensor.kueche"]
+    await hass.config_entries.options.async_configure(result["flow_id"], {"name": "x", "presence": [], "return_room": False})
+    await hass.async_block_till_done()
+
+    # editing the kitchen keeps its own entities selectable
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "edit_room"})
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"room": "1"})
+    schema = result["data_schema"].schema
+    assert "media_player.kueche" not in schema["speaker"].config["exclude_entities"]
+    assert schema["presence"].config["exclude_entities"] == ["binary_sensor.wz"]

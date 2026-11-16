@@ -6,6 +6,7 @@
 - One picture: attached to the briefing push (one push only). Several: one grouped push per picture
 - Snapshots are stored in the media folder (needs login) and deleted 15 minutes after delivery
 - Push service list hides Alexa Media announce services
+- Room setup hides speakers and presence entities already used by another room
 
 ## 0.2.0b1 (beta)
 - Renamed to Domestic Intelligence Service / Heimischer Nachrichtendienst
