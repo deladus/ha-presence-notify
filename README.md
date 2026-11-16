@@ -1,3 +1,5 @@
+<img src="docs/icon.png" alt="" width="96" align="right">
+
 # Domestic Intelligence Service
 
 *Heimischer Nachrichtendienst* · domain `presence_notify`

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e3a5f"/>
+      <stop offset="1" stop-color="#0f1f33"/>
+    </linearGradient>
+    <linearGradient id="house" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#dce6f2"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2b2b2b"/>
+      <stop offset="1" stop-color="#050505"/>
+    </linearGradient>
+  </defs>
+  <!-- background -->
+  <rect x="16" y="16" width="480" height="480" rx="104" fill="url(#bg)"/>
+  <!-- sound waves (right) -->
+  <g fill="none" stroke="#f5b82e" stroke-linecap="round" stroke-width="20">
+    <path d="M392 236 a44 44 0 0 1 0 72"/>
+    <path d="M420 206 a86 86 0 0 1 0 132" opacity="0.75"/>
+  </g>
+  <!-- house -->
+  <path d="M96 252 L236 128 L376 252 L352 252 L352 400 Q352 412 340 412 L132 412 Q120 412 120 400 L120 252 Z"
+        fill="url(#house)" stroke="#ffffff" stroke-width="10" stroke-linejoin="round"/>
+  <!-- chimney -->
+  <rect x="298" y="150" width="34" height="62" rx="6" fill="url(#house)"/>
+  <!-- sunglasses -->
+  <g>
+    <path d="M150 262 H322" stroke="#111" stroke-width="12" stroke-linecap="round"/>
+    <path d="M152 258 h64 q6 0 6 6 q-2 40 -36 42 q-34 -2 -38 -42 q0 -6 4 -6 z" fill="url(#glass)"/>
+    <path d="M256 258 h64 q6 0 4 6 q-4 40 -38 42 q-34 -2 -36 -42 q0 -6 6 -6 z" fill="url(#glass)"/>
+    <path d="M166 268 l18 0" stroke="#ffffff" stroke-width="6" stroke-linecap="round" opacity="0.55"/>
+    <path d="M270 268 l18 0" stroke="#ffffff" stroke-width="6" stroke-linecap="round" opacity="0.55"/>
+  </g>
+  <!-- smirk -->
+  <path d="M206 346 q30 18 64 -4" fill="none" stroke="#1e3a5f" stroke-width="12" stroke-linecap="round"/>
+  <!-- door as earpiece cable? keep: small door -->
+  <rect x="300" y="340" width="30" height="72" rx="6" fill="#1e3a5f" opacity="0.9"/>
+</svg>
