@@ -92,3 +92,5 @@ Der Heimische Nachrichtendienst schickt Benachrichtigungen an alle, die zu Hause
 ## License
 
 MIT
+
+*Developed with AI assistance. / Mit KI-Unterstützung entwickelt.*
