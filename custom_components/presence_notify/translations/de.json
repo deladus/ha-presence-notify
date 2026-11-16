@@ -82,13 +82,15 @@
           "tts_entity": "TTS-Dienst für Nicht-Alexa-Lautsprecher (optional)",
           "max_pending": "Maximal gespeicherte Nachrichten",
           "high_priority_push": "Push mit hoher Priorität senden",
-          "push_images_separately": "Gespeicherte Nachrichten mit Bild zusätzlich einzeln pushen",
+          "push_images_separately": "Mehrere gespeicherte Nachrichten mit Bild zusätzlich einzeln pushen",
           "push_on_arrival": "Briefing-Push sofort bei der Heimkehr",
-          "home_entity": "Anwesenheitsquelle (optional)"
+          "home_entity": "Anwesenheitsquelle (optional)",
+          "image_merge_seconds": "Gleiche Meldungen mit Bild zusammenfassen innerhalb von"
         },
         "data_description": {
           "push_on_arrival": "Sonst kommt der Push erst bei Bewegung im Heimkehr-Raum, zusammen mit der Ansage.",
-          "home_entity": "Z. B. ein Hausmodus (Auswahlliste) oder ein Ist-jemand-zuhause-Sensor. Wenn gesetzt, entscheidet sie, ob jemand zu Hause ist; die Personen legen dann nur fest, wer Push bekommt."
+          "home_entity": "Z. B. ein Hausmodus (Auswahlliste) oder ein Ist-jemand-zuhause-Sensor. Wenn gesetzt, entscheidet sie, ob jemand zu Hause ist; die Personen legen dann nur fest, wer Push bekommt.",
+          "image_merge_seconds": "Jede Meldung mit Bild (z. B. Türklingel) behält ihren eigenen Schnappschuss. Nur eine gleiche Meldung innerhalb dieser Zeit wird zusammengefasst (dieselbe Person klingelt nochmal)."
         }
       },
       "persons": {

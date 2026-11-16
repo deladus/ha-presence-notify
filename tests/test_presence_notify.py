@@ -273,3 +273,83 @@ async def test_house_mode_controls_storing_and_arrival(hass: HomeAssistant) -> N
     hass.states.async_set("person.dennis", "home")
     await hass.services.async_call(DOMAIN, "send", {"title": "Y", "message": "c", "ignore_quiet_hours": True}, blocking=True)
     assert len(calls["push"]) == 3
+
+
+def _register_camera(hass: HomeAssistant, written: list[str]):
+    async def snapshot(call):
+        path = call.data["filename"]
+        def _w():
+            with open(path, "wb") as f:
+                f.write(b"jpg")
+        await hass.async_add_executor_job(_w)
+        written.append(path)
+    hass.services.async_register("camera", "snapshot", snapshot)
+
+
+async def _setup_media(hass: HomeAssistant, tmp_path, **extra):
+    hass.config.media_dirs = {"local": str(tmp_path)}
+    hass.config.allowlist_external_dirs = {str(tmp_path)}
+    return await _setup(hass, home=False, **extra)
+
+
+DOORBELL = {"title": "Türklingel", "message": "Es hat geklingelt.",
+            "data": {"image": "/api/camera_proxy/camera.door"}}
+
+
+async def test_doorbell_snapshots_not_counted(hass: HomeAssistant, tmp_path, freezer) -> None:
+    _register_services(hass)
+    written: list[str] = []
+    _register_camera(hass, written)
+    entry = await _setup_media(hass, tmp_path)
+    await hass.services.async_call(DOMAIN, "send", DOORBELL, blocking=True)
+    freezer.tick(10)  # same person rings again within 30 s -> merged
+    await hass.services.async_call(DOMAIN, "send", DOORBELL, blocking=True)
+    freezer.tick(120)  # later ring -> own entry with own snapshot
+    await hass.services.async_call(DOMAIN, "send", DOORBELL, blocking=True)
+    pending = entry.runtime_data.pending
+    assert len(pending) == 2
+    assert pending[0]["count"] == 2 and pending[1]["count"] == 1
+    assert len(written) == 2
+    assert pending[0]["data"]["image"].startswith("/media/local/presence_notify/")
+    assert pending[0]["data"]["image"] != pending[1]["data"]["image"]
+
+
+async def test_single_image_attached_to_briefing(hass: HomeAssistant, tmp_path) -> None:
+    calls = _register_services(hass, ai_text="Briefing")
+    _register_camera(hass, [])
+    entry = await _setup_media(hass, tmp_path)
+    await hass.services.async_call(DOMAIN, "send", DOORBELL, blocking=True)
+    await hass.services.async_call(DOMAIN, "send", {"title": "Post", "message": "da"}, blocking=True)
+    hass.states.async_set("person.dennis", "home")
+    await hass.async_block_till_done()
+    assert len(calls["push"]) == 1
+    push = calls["push"][0].data
+    assert push["message"] == "Briefing"
+    assert push["data"]["image"].startswith("/media/local/presence_notify/")
+    assert "_snapshot" not in push["data"]
+
+
+async def test_several_images_grouped_pushes_and_cleanup(hass: HomeAssistant, tmp_path, freezer) -> None:
+    calls = _register_services(hass, ai_text="Briefing")
+    written: list[str] = []
+    _register_camera(hass, written)
+    entry = await _setup_media(hass, tmp_path)
+    await hass.services.async_call(DOMAIN, "send", DOORBELL, blocking=True)
+    freezer.tick(300)
+    await hass.services.async_call(DOMAIN, "send", DOORBELL, blocking=True)
+    await hass.services.async_call(DOMAIN, "send", {"title": "Post", "message": "da"}, blocking=True)
+    hass.states.async_set("person.dennis", "home")
+    await hass.async_block_till_done()
+    assert len(calls["push"]) == 3  # briefing + 2 doorbell pushes
+    assert all(c.data["data"].get("group") == "presence_notify" for c in calls["push"][1:])
+    hass.states.async_set("binary_sensor.wz", "on")
+    await hass.async_block_till_done()
+    import os
+    assert all(os.path.exists(p) for p in written)  # kept for a while
+    from datetime import timedelta
+    from pytest_homeassistant_custom_component.common import async_fire_time_changed
+    from homeassistant.util import dt as dt_util
+    freezer.tick(timedelta(minutes=16))
+    async_fire_time_changed(hass, dt_util.utcnow())
+    await hass.async_block_till_done()
+    assert not any(os.path.exists(p) for p in written)

@@ -82,13 +82,15 @@
           "tts_entity": "TTS engine for non-Alexa speakers (optional)",
           "max_pending": "Maximum stored notifications",
           "high_priority_push": "Send push notifications with high priority",
-          "push_images_separately": "Push stored notifications with an image separately",
+          "push_images_separately": "Push stored notifications with an image separately (when there are several)",
           "push_on_arrival": "Push the briefing right away when someone comes home",
-          "home_entity": "Home source (optional)"
+          "home_entity": "Home source (optional)",
+          "image_merge_seconds": "Merge repeated notifications with an image within"
         },
         "data_description": {
           "push_on_arrival": "Without this, the push waits for motion in a return room, together with the announcement.",
-          "home_entity": "E.g. a house mode select or an 'anyone home' sensor. If set, it decides whether someone is home; persons then only define who gets push notifications."
+          "home_entity": "E.g. a house mode select or an 'anyone home' sensor. If set, it decides whether someone is home; persons then only define who gets push notifications.",
+          "image_merge_seconds": "Every notification with an image (e.g. doorbell) keeps its own snapshot. Only an identical one within this time is merged (the same person ringing twice)."
         }
       },
       "persons": {

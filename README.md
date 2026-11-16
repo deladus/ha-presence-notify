@@ -5,9 +5,9 @@
 *Heimischer Nachrichtendienst* · domain `presence_notify`
 
 > [!WARNING]
-> **Early beta (0.2.0b1).** This integration is at the very beginning of its development. Expect bugs, breaking changes to settings and actions, and missing features. Please don't rely on it for important notifications yet, and report problems via [Issues](https://github.com/deladus/ha-presence-notify/issues).
+> **Early beta (0.2.0b2).** This integration is at the very beginning of its development. Expect bugs, breaking changes to settings and actions, and missing features. Please don't rely on it for important notifications yet, and report problems via [Issues](https://github.com/deladus/ha-presence-notify/issues).
 >
-> **Frühe Beta (0.2.0b1).** Die Integration steht noch ganz am Anfang. Fehler, inkompatible Änderungen an Einstellungen und Aktionen sowie fehlende Funktionen sind zu erwarten. Bitte noch nicht für wichtige Benachrichtigungen verwenden. Probleme gern über [Issues](https://github.com/deladus/ha-presence-notify/issues) melden.
+> **Frühe Beta (0.2.0b2).** Die Integration steht noch ganz am Anfang. Fehler, inkompatible Änderungen an Einstellungen und Aktionen sowie fehlende Funktionen sind zu erwarten. Bitte noch nicht für wichtige Benachrichtigungen verwenden. Probleme gern über [Issues](https://github.com/deladus/ha-presence-notify/issues) melden.
 
 Notifications for Home Assistant that reach whoever is **at home and in earshot**, and don't get lost when nobody is home.
 
@@ -80,7 +80,8 @@ data:
 ## Known limitations
 
 - Pets can trigger presence sensors in a return room.
-- In a summarized briefing, push extras of individual notifications are dropped; notifications with an `image` are additionally pushed one by one (can be turned off).
+- Camera images: when a notification with `image: /api/camera_proxy/camera.x` is stored, a snapshot is saved to the media folder (`/media/presence_notify`, requires login) so it shows the right moment. One picture is attached to the briefing push; several are pushed one by one, grouped. Snapshots are deleted 15 minutes after delivery.
+- Other push extras (e.g. actions) of individual notifications are dropped in a summarized briefing.
 
 ---
 

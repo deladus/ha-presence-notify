@@ -11,6 +11,9 @@ Responsibilities:
 from __future__ import annotations
 
 import asyncio
+from functools import partial
+import os
+import uuid
 from collections.abc import Callable
 from datetime import datetime, time
 import logging
@@ -21,7 +24,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.event import async_call_later, async_track_state_change_event
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
@@ -30,6 +33,7 @@ from .const import (
     CONF_HIGH_PRIORITY,
     CONF_HOME_ENTITY,
     CONF_HOME_STATES,
+    CONF_IMAGE_MERGE_SECONDS,
     CONF_IMAGES_SEPARATE,
     CONF_MAX_PENDING,
     CONF_NOTIFY,
@@ -44,9 +48,11 @@ from .const import (
     CONF_ROOMS,
     CONF_SPEAKER,
     CONF_TTS_ENTITY,
+    DEFAULT_IMAGE_MERGE_SECONDS,
     DEFAULT_MAX_PENDING,
     DEFAULT_QUIET_END,
     DEFAULT_QUIET_START,
+    DOMAIN,
     EVENT_DELIVERED,
     HIGH_PRIORITY_DATA,
     PERSON_HOME_STATES,
@@ -104,6 +110,13 @@ TEXTS = {
 }
 
 _NON_LATIN1 = re.compile(r"[^\x00-\xFF]")
+CAMERA_PROXY_PREFIX = "/api/camera_proxy/"
+SNAPSHOT_KEEP_SECONDS = 15 * 60
+
+
+def _clean_data(data: dict[str, Any] | None) -> dict[str, Any]:
+    """Push data without internal keys."""
+    return {k: v for k, v in (data or {}).items() if not k.startswith("_")}
 
 
 def _parse_time(value: str | None, default: str) -> time:
@@ -158,6 +171,7 @@ class PresenceNotifyManager:
         last = stored.get("last_delivery")
         self.last_delivery = dt_util.parse_datetime(last) if last else None
 
+        await self.hass.async_add_executor_job(self._cleanup_orphans)
         self._someone_home = self.someone_home()
         person_ids = [p[CONF_PERSON] for p in self.persons]
         if home_entity := self.options.get(CONF_HOME_ENTITY):
@@ -291,31 +305,123 @@ class PresenceNotifyManager:
         )
 
     async def async_store(self, title: str, message: str, data: dict[str, Any]) -> None:
-        """Store a message; identical title+message are merged and counted."""
-        now_str = dt_util.now().strftime("%d.%m. %H:%M")
-        count, first = 1, now_str
+        """Store a message.
+
+        Without an image, identical title+message are merged and counted.
+        With an image (e.g. a doorbell), every message keeps its own snapshot;
+        only a repeat within the merge window (same person ringing twice) is merged.
+        """
+        now = dt_util.now()
+        now_str = now.strftime("%d.%m. %H:%M")
+        has_image = bool((data or {}).get("image"))
+        window = int(self.options.get(CONF_IMAGE_MERGE_SECONDS, DEFAULT_IMAGE_MERGE_SECONDS))
+
+        merged: dict[str, Any] | None = None
         remaining: list[dict[str, Any]] = []
         for item in self.pending:
-            if item.get("title") == title and item.get("message") == message:
-                count += int(item.get("count", 1))
-                first = item.get("first", item.get("time", now_str))
+            same = item.get("title") == title and item.get("message") == message
+            if same and has_image:
+                same = now.timestamp() - float(item.get("ts", 0)) <= window
+            if same and merged is None:
+                merged = item
             else:
                 remaining.append(item)
-        remaining.append(
-            {
-                "title": title,
-                "message": message,
-                "data": data,
-                "time": now_str,
-                "first": first,
-                "count": count,
-            }
-        )
+
+        if merged is not None:
+            merged["count"] = int(merged.get("count", 1)) + 1
+            merged["time"] = now_str
+            merged["ts"] = now.timestamp()
+            # keep the first snapshot (shows who rang)
+            if not has_image:
+                merged["data"] = data
+            remaining.append(merged)
+        else:
+            if has_image:
+                data = await self._async_snapshot(data)
+            remaining.append(
+                {
+                    "title": title,
+                    "message": message,
+                    "data": data,
+                    "time": now_str,
+                    "first": now_str,
+                    "ts": now.timestamp(),
+                    "count": 1,
+                }
+            )
         max_pending = int(self.options.get(CONF_MAX_PENDING, DEFAULT_MAX_PENDING))
+        dropped = remaining[:-max_pending]
         self.pending = remaining[-max_pending:]
+        self._delete_snapshots(dropped)
         await self._async_save()
 
+    # --------------------------------------------------------------- snapshots
+
+    def _snapshot_dir(self) -> str:
+        base = self.hass.config.media_dirs.get("local") or self.hass.config.path("media")
+        return os.path.join(base, DOMAIN)
+
+    async def _async_snapshot(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Replace a live camera image with a snapshot taken right now."""
+        image = str(data.get("image", ""))
+        if not image.startswith(CAMERA_PROXY_PREFIX):
+            return data
+        camera = image[len(CAMERA_PROXY_PREFIX):].split("?", 1)[0]
+        folder = self._snapshot_dir()
+        name = f"{uuid.uuid4().hex}.jpg"
+        path = os.path.join(folder, name)
+        if not self.hass.config.is_allowed_path(path):
+            _LOGGER.warning("Snapshot folder %s is not allowed, keeping live camera image", folder)
+            return data
+        try:
+            await self.hass.async_add_executor_job(partial(os.makedirs, folder, exist_ok=True))
+            await self.hass.services.async_call(
+                "camera", "snapshot", {"entity_id": camera, "filename": path}, blocking=True
+            )
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("Snapshot of %s failed, keeping live image: %s", camera, err)
+            return data
+        media_rel = os.path.relpath(path, self.hass.config.media_dirs.get("local") or self.hass.config.path("media"))
+        return {**data, "image": f"/media/local/{media_rel}", "_snapshot": path}
+
+    def _cleanup_orphans(self) -> None:
+        """Remove snapshot files that no stored message refers to (runs in executor)."""
+        folder = self._snapshot_dir()
+        if not os.path.isdir(folder):
+            return
+        keep = {(i.get("data") or {}).get("_snapshot") for i in self.pending}
+        for name in os.listdir(folder):
+            path = os.path.join(folder, name)
+            if path not in keep and name.endswith(".jpg"):
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
+
+    def _delete_snapshots(self, items: list[dict[str, Any]], delay: float = 0) -> None:
+        files = [
+            f for item in items if (f := (item.get("data") or {}).get("_snapshot"))
+        ]
+        if not files:
+            return
+
+        def _remove() -> None:
+            for f in files:
+                try:
+                    os.remove(f)
+                except OSError:
+                    pass
+
+        if delay:
+            async def _later(_now: Any) -> None:
+                await self.hass.async_add_executor_job(_remove)
+
+            self._unsubs.append(async_call_later(self.hass, delay, _later))
+        else:
+            self.hass.async_add_executor_job(_remove)
+
     async def async_clear(self) -> None:
+        self._delete_snapshots(self.pending)
         self.pending = []
         self._stop_waiting()
         await self._async_save()
@@ -399,16 +505,26 @@ class PresenceNotifyManager:
     async def _push_items(
         self, items: list[dict[str, Any]], title: str, message: str, data: dict[str, Any]
     ) -> None:
+        if len(items) == 1:
+            await self._push(title, message, _clean_data(data))
+            return
+        with_image = [i for i in items if (i.get("data") or {}).get("image")]
+        if len(with_image) == 1:
+            # single picture: attach it to the briefing -> exactly one push
+            await self._push(title, message, {"image": with_image[0]["data"]["image"]})
+            return
         await self._push(title, message, data)
-        if len(items) > 1 and self.options.get(CONF_IMAGES_SEPARATE, True):
-            for item in items:
-                item_data = item.get("data") or {}
-                if item_data.get("image"):
-                    await self._push(
-                        f"🏠 {self.texts['missed']}: {item['title']}",
-                        item["message"],
-                        item_data,
-                    )
+        if with_image and self.options.get(CONF_IMAGES_SEPARATE, True):
+            for item in with_image:
+                count = int(item.get("count", 1))
+                text = item["message"]
+                if count > 1:
+                    text += " (" + self.texts["times_short"].format(n=count) + ")"
+                await self._push(
+                    f"{item['title']} · {item.get('time', '')}",
+                    text,
+                    {**_clean_data(item["data"]), "group": DOMAIN},
+                )
 
     async def _async_push_on_arrival(self) -> None:
         """Push the briefing right away; the announcement waits for motion."""
@@ -446,6 +562,7 @@ class PresenceNotifyManager:
                     self._announce_to(speakers, f"{title}: {message}", True),
                 )
 
+            self._delete_snapshots(items, delay=SNAPSHOT_KEEP_SECONDS)
             self.last_delivery = dt_util.utcnow()
             await self._async_save()
             self.hass.bus.async_fire(

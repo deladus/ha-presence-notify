@@ -26,6 +26,8 @@ CONF_HIGH_PRIORITY = "high_priority_push"
 CONF_IMAGES_SEPARATE = "push_images_separately"
 CONF_PUSH_ON_ARRIVAL = "push_on_arrival"
 CONF_HOME_ENTITY = "home_entity"
+CONF_IMAGE_MERGE_SECONDS = "image_merge_seconds"
+DEFAULT_IMAGE_MERGE_SECONDS = 30
 CONF_HOME_STATES = "home_states"
 HOME_ENTITY_DOMAINS = ["input_select", "select", "input_boolean", "binary_sensor", "sensor", "alarm_control_panel", "group"]
 

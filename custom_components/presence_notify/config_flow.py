@@ -20,6 +20,7 @@ from .const import (
     CONF_HIGH_PRIORITY,
     CONF_HOME_ENTITY,
     CONF_HOME_STATES,
+    CONF_IMAGE_MERGE_SECONDS,
     CONF_IMAGES_SEPARATE,
     CONF_MAX_PENDING,
     CONF_NOTIFY,
@@ -34,6 +35,7 @@ from .const import (
     CONF_ROOMS,
     CONF_SPEAKER,
     CONF_TTS_ENTITY,
+    DEFAULT_IMAGE_MERGE_SECONDS,
     DEFAULT_MAX_PENDING,
     DEFAULT_QUIET_END,
     DEFAULT_QUIET_START,
@@ -86,6 +88,9 @@ def _general_schema(full: bool) -> vol.Schema:
                 vol.Required(CONF_PUSH_ON_ARRIVAL, default=True): selector.BooleanSelector(),
                 vol.Required(CONF_HIGH_PRIORITY, default=True): selector.BooleanSelector(),
                 vol.Required(CONF_IMAGES_SEPARATE, default=True): selector.BooleanSelector(),
+                vol.Required(CONF_IMAGE_MERGE_SECONDS, default=DEFAULT_IMAGE_MERGE_SECONDS): selector.NumberSelector(
+                    selector.NumberSelectorConfig(min=0, max=600, unit_of_measurement="s", mode=selector.NumberSelectorMode.BOX)
+                ),
             }
         )
     return vol.Schema(fields)
@@ -273,6 +278,7 @@ class PresenceNotifyOptionsFlow(_PersonsMixin, OptionsFlow):
             for key in (CONF_AI_TASK, CONF_TTS_ENTITY, CONF_HOME_ENTITY):
                 self._opts.pop(key, None)
             user_input[CONF_MAX_PENDING] = int(user_input[CONF_MAX_PENDING])
+            user_input[CONF_IMAGE_MERGE_SECONDS] = int(user_input[CONF_IMAGE_MERGE_SECONDS])
             self._opts.update(user_input)
             if user_input.get(CONF_HOME_ENTITY):
                 return await self.async_step_home_states()
