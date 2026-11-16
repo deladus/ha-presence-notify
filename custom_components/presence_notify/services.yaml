@@ -27,6 +27,27 @@ send:
       default: false
       selector:
         boolean:
+    actions:
+      required: false
+      selector:
+        object:
+          multiple: true
+          label_field: title
+          fields:
+            title:
+              label: Title
+              required: true
+              selector:
+                text:
+            action:
+              label: ID
+              selector:
+                text:
+            uri:
+              label: Link
+              selector:
+                text:
+                  type: url
 
 deliver_pending:
   fields:

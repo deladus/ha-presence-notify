@@ -26,9 +26,10 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_call_later, async_track_state_change_event
 from homeassistant.helpers.storage import Store
-from homeassistant.util import dt as dt_util
+from homeassistant.util import dt as dt_util, slugify
 
 from .const import (
+    ACTION_PREFIX,
     CONF_AI_TASK,
     CONF_DOOR_WINDOW,
     CONF_ENTRY_DOORS,
@@ -36,6 +37,7 @@ from .const import (
     CONF_ASK_ALEXA,
     CONF_ASK_SCRIPT,
     CONF_HIGH_PRIORITY,
+    CONF_HOLD,
     CONF_HOME_ENTITY,
     CONF_HOME_STATES,
     CONF_IMAGE_MERGE_SECONDS,
@@ -143,6 +145,48 @@ SNAPSHOT_KEEP_SECONDS = 15 * 60
 def _clean_data(data: dict[str, Any] | None) -> dict[str, Any]:
     """Push data without internal keys."""
     return {k: v for k, v in (data or {}).items() if not k.startswith("_")}
+
+
+def _with_priority(extras: dict[str, Any] | None) -> dict[str, Any]:
+    """Push data with high priority for Android and iOS.
+
+    Keys given by the caller win; the iOS ``push`` block is merged key by key,
+    so e.g. a custom sound keeps the interruption level.
+    """
+    extras = dict(extras or {})
+    merged = {**HIGH_PRIORITY_DATA, **extras}
+    if isinstance(extras.get("push"), dict):
+        merged["push"] = {**HIGH_PRIORITY_DATA["push"], **extras["push"]}
+    return merged
+
+
+def _button_id(title: str) -> str:
+    slug = slugify(title).upper()
+    return f"{ACTION_PREFIX}{slug or 'ACTION'}"
+
+
+def _with_actions(
+    data: dict[str, Any], actions: list[dict[str, str]] | None
+) -> dict[str, Any]:
+    """Turn the form-based buttons into Companion app push actions.
+
+    Each button has a title and optionally an ID (sent back in the
+    ``mobile_app_notification_action`` event) or a link to open.
+    """
+    if not actions:
+        return data
+    buttons = list(data.get("actions") or [])
+    for item in actions:
+        title = (item.get("title") or "").strip()
+        if not title:
+            continue
+        uri = (item.get("uri") or "").strip()
+        if uri:
+            buttons.append({"action": "URI", "title": title, "uri": uri})
+        else:
+            action = (item.get("action") or "").strip() or _button_id(title)
+            buttons.append({"action": action, "title": title})
+    return {**data, "actions": buttons} if buttons else data
 
 
 def _parse_time(value: str | None, default: str) -> time:
@@ -264,16 +308,38 @@ class PresenceNotifyManager:
             return list(self.persons)
         return home
 
+    def _room_recency(self, room: dict[str, Any]) -> float | None:
+        """How recently someone was detected in the room.
+
+        Returns None if nobody counts as present, ``inf`` while a presence
+        entity is on, otherwise the time the last entity went off, as long as
+        that is within the room's hold time.
+        """
+        hold = float(room.get(CONF_HOLD) or 0) * 60
+        now = dt_util.utcnow()
+        best: float | None = None
+        for eid in room.get(CONF_PRESENCE) or []:
+            state = self.hass.states.get(eid)
+            if state is None:
+                continue
+            if state.state in PRESENCE_ON_STATES:
+                return float("inf")
+            if hold and state.state not in ("unavailable", "unknown"):
+                age = (now - state.last_changed).total_seconds()
+                if age <= hold:
+                    ts = state.last_changed.timestamp()
+                    best = ts if best is None else max(best, ts)
+        return best
+
     def _room_occupied(self, room: dict[str, Any]) -> bool | None:
-        """True/False if the room has presence entities, None if it has none."""
-        entities = room.get(CONF_PRESENCE) or []
-        if not entities:
+        """True/False if the room has presence entities, None if it has none.
+
+        With a hold time, a room still counts as occupied for that many
+        minutes after its presence entities went off.
+        """
+        if not room.get(CONF_PRESENCE):
             return None
-        return any(
-            (state := self.hass.states.get(eid)) is not None
-            and state.state in PRESENCE_ON_STATES
-            for eid in entities
-        )
+        return self._room_recency(room) is not None
 
     def speakers_in_earshot(self, allowed: list[str] | None = None) -> list[str]:
         """Speakers of occupied rooms plus rooms without sensors.
@@ -322,9 +388,10 @@ class PresenceNotifyManager:
         data: dict[str, Any] | None = None,
         speakers: list[str] | None = None,
         ignore_quiet_hours: bool = False,
+        actions: list[dict[str, str]] | None = None,
     ) -> None:
         """Main entry point used by the presence_notify.send service."""
-        data = data or {}
+        data = _with_actions(dict(data or {}), actions)
         if not self.someone_home():
             await self.async_store(title, message, data)
             return
@@ -698,14 +765,22 @@ class PresenceNotifyManager:
     # -------------------------------------------------------------------- ask
 
     def _detected_speaker(self, allowed: list[str] | None) -> str | None:
-        """Speaker of the first room where someone is detected (no fallback)."""
+        """Speaker of the room with the most recent detection (no fallback).
+
+        A room where someone is detected right now wins over one that only
+        counts as occupied because of its hold time.
+        """
+        best: tuple[float, str] | None = None
         for room in self.rooms:
             speaker = room.get(CONF_SPEAKER)
             if not speaker or (allowed is not None and speaker not in allowed):
                 continue
-            if self._room_occupied(room):
-                return speaker
-        return None
+            if not room.get(CONF_PRESENCE):
+                continue
+            recency = self._room_recency(room)
+            if recency is not None and (best is None or recency > best[0]):
+                best = (recency, speaker)
+        return best[1] if best else None
 
     def _person_name(self, entity_id: str) -> str:
         state = self.hass.states.get(entity_id)
@@ -746,7 +821,7 @@ class PresenceNotifyManager:
             return acts
 
         async def _push_to(persons: list[dict[str, str]], message: str, with_forward: bool) -> None:
-            data = {**HIGH_PRIORITY_DATA, "tag": tag, "actions": _actions(with_forward)}
+            data = _with_priority({"tag": tag, "actions": _actions(with_forward)})
             for person in persons:
                 await self._notify_person(person, title, message, data)
 
@@ -827,7 +902,9 @@ class PresenceNotifyManager:
 
         # remove the question everywhere
         for person in asked + forwarded_to:
-            await self._notify_person(person, "", "clear_notification", {"tag": tag})
+            await self._notify_person(
+                person, "", "clear_notification", _with_priority({"tag": tag})
+            )
 
         # Alexa confirms its own question
         if by == "Alexa" and alexa_speaker:
@@ -851,7 +928,9 @@ class PresenceNotifyManager:
             for person in asked + forwarded_to:
                 if by and self._person_name(person[CONF_PERSON]) == by:
                     continue
-                await self._notify_person(person, title, info, {"tag": f"{tag}_info"})
+                await self._notify_person(
+                    person, title, info, _with_priority({"tag": f"{tag}_info"})
+                )
 
         return {"answer": result, "by": by}
 
@@ -874,7 +953,7 @@ class PresenceNotifyManager:
     async def _push(self, title: str, message: str, data: dict[str, Any]) -> None:
         extras = data if isinstance(data, dict) else {}
         if self.options.get(CONF_HIGH_PRIORITY, True):
-            payload_data = {**HIGH_PRIORITY_DATA, **extras}
+            payload_data = _with_priority(extras)
         else:
             payload_data = extras
         for person in self.persons_home():

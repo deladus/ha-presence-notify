@@ -526,3 +526,106 @@ async def test_config_flow_pet_mode_step(hass: HomeAssistant) -> None:
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {
         "entry_doors": ["binary_sensor.haustuer"], "door_window": 5})
     assert result["step_id"] == "persons"
+
+
+async def test_hold_time_keeps_room_occupied(hass: HomeAssistant, freezer) -> None:
+    """A room with a hold time counts as occupied for that long after 'off'."""
+    _register_services(hass)
+    rooms = [dict(r) for r in OPTIONS["rooms"]]
+    rooms[0]["hold_minutes"] = 5  # Wohnzimmer
+    entry = await _setup(hass, home=True, rooms=rooms)
+    mgr = entry.runtime_data
+    hass.states.async_set("binary_sensor.wz", "on")
+    hass.states.async_set("binary_sensor.wz", "off")
+    freezer.tick(120)
+    assert mgr.speakers_in_earshot() == ["media_player.studio", "media_player.schlaf"]
+    freezer.tick(240)  # 6 minutes after 'off'
+    assert mgr.speakers_in_earshot() == [
+        "media_player.studio", "media_player.kueche", "media_player.schlaf"]  # fallback: all
+    # kitchen without hold time: off means off
+    hass.states.async_set("binary_sensor.kueche", "on")
+    hass.states.async_set("binary_sensor.kueche", "off")
+    assert mgr._room_occupied(mgr.rooms[1]) is False
+
+
+async def test_detected_speaker_prefers_live_then_most_recent(hass: HomeAssistant, freezer) -> None:
+    _register_services(hass)
+    rooms = [dict(r, hold_minutes=10) for r in OPTIONS["rooms"]]
+    entry = await _setup(hass, home=True, rooms=rooms)
+    mgr = entry.runtime_data
+    hass.states.async_set("binary_sensor.wz", "on")
+    hass.states.async_set("binary_sensor.wz", "off")
+    freezer.tick(60)
+    hass.states.async_set("binary_sensor.kueche", "on")
+    hass.states.async_set("binary_sensor.kueche", "off")
+    freezer.tick(60)
+    # both within hold time: kitchen was more recent
+    assert mgr._detected_speaker(None) == "media_player.kueche"
+    # someone detected right now wins
+    hass.states.async_set("binary_sensor.wz", "on")
+    assert mgr._detected_speaker(None) == "media_player.studio"
+
+
+async def test_remote_counts_as_presence(hass: HomeAssistant) -> None:
+    _register_services(hass)
+    rooms = [dict(r) for r in OPTIONS["rooms"]]
+    rooms[0]["presence"] = ["remote.harmony"]
+    hass.states.async_set("remote.harmony", "on")
+    entry = await _setup(hass, home=True, rooms=rooms)
+    assert entry.runtime_data.speakers_in_earshot() == ["media_player.studio", "media_player.schlaf"]
+
+
+async def test_priority_android_and_ios(hass: HomeAssistant) -> None:
+    calls = _register_services(hass)
+    await _setup(hass, home=True)
+    await hass.services.async_call(
+        DOMAIN, "send",
+        {"title": "T", "message": "M", "data": {"push": {"sound": "default"}, "ttl": 60}},
+        blocking=True,
+    )
+    data = calls["push"][0].data["data"]
+    assert data["priority"] == "high" and data["importance"] == "high"
+    assert data["ttl"] == 60  # caller wins
+    assert data["push"] == {"interruption-level": "time-sensitive", "sound": "default"}
+
+
+async def test_action_buttons_from_form(hass: HomeAssistant) -> None:
+    calls = _register_services(hass)
+    await _setup(hass, home=True)
+    await hass.services.async_call(
+        DOMAIN, "send",
+        {
+            "title": "Garage", "message": "Tor offen",
+            "data": {"actions": [{"action": "EXISTING", "title": "Alt"}]},
+            "actions": [
+                {"title": "Garage schließen"},
+                {"title": "Ignorieren", "action": "GARAGE_IGNORE"},
+                {"title": "Tür öffnen"},
+                {"title": "Kamera", "uri": "/lovelace/kameras"},
+            ],
+        },
+        blocking=True,
+    )
+    actions = calls["push"][0].data["data"]["actions"]
+    assert actions == [
+        {"action": "EXISTING", "title": "Alt"},
+        {"action": "PN_GARAGE_SCHLIESSEN", "title": "Garage schließen"},
+        {"action": "GARAGE_IGNORE", "title": "Ignorieren"},
+        {"action": "PN_TUR_OFFNEN", "title": "Tür öffnen"},
+        {"action": "URI", "title": "Kamera", "uri": "/lovelace/kameras"},
+    ]
+
+
+async def test_ask_side_pushes_high_priority(hass: HomeAssistant) -> None:
+    calls = _register_services(hass)
+    await _setup(hass, home=True)
+    task = await _ask_task(hass)
+    await asyncio.sleep(0.05)
+    question = next(c for c in calls["push"] if c.data.get("message") == "Starten?")
+    hass.bus.async_fire(
+        "mobile_app_notification_action", {"action": question.data["data"]["actions"][0]["action"]}
+    )
+    await task
+    side = [c for c in calls["push"] if c.data.get("message") != "Starten?"]
+    assert side and all(c.data["data"]["priority"] == "high" for c in side)
+    assert all(c.data["data"]["push"]["interruption-level"] == "time-sensitive" for c in side)

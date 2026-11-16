@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1b1 (beta)
+- Rooms: optional hold time – a room still counts as occupied for X minutes after its presence entities went off (announcements and questions only). Questions go to the room with the most recent detection
+- Rooms: `remote` entities (e.g. Harmony Hub) can be used as presence entities
+- `presence_notify.send`: new field `actions` to add push buttons in the editor (title, optional ID, optional link) without writing YAML
+- Fix iOS: high priority now uses `interruption-level: time-sensitive` (the previous key had no effect on iOS); a custom `push` block in `data` is merged instead of replacing it
+- Fix: removing an answered question from the phones and the "X decided" info are now also sent with high priority, so they are not delayed on Android
+
 ## 0.3.0b1 (beta)
 - New action `presence_notify.ask`: yes/no question by push with buttons to everyone at home (or the first person with a "Pass on" button when nobody is home). First answer wins, returns `answer` and `by`
 - Pet mode (optional): after coming home, motion in a return room only counts once an entry door was opened or a lock unlocked (a door opened up to X minutes before the arrival counts too) – pets or a robot vacuum no longer trigger the briefing early

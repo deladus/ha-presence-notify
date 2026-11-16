@@ -50,10 +50,12 @@
           "speaker": "Lautsprecher",
           "presence": "Anwesenheits-Entitäten",
           "return_room": "Heimkehr-Raum",
-          "add_another": "Weiteren Raum hinzufügen"
+          "add_another": "Weiteren Raum hinzufügen",
+          "hold_minutes": "Nachlaufzeit"
         },
         "data_description": {
-          "return_room": "Nach der Heimkehr werden verpasste Nachrichten zugestellt, sobald in einem Heimkehr-Raum Bewegung erkannt wird – auf dem Lautsprecher dieses Raums."
+          "return_room": "Nach der Heimkehr werden verpasste Nachrichten zugestellt, sobald in einem Heimkehr-Raum Bewegung erkannt wird – auf dem Lautsprecher dieses Raums.",
+          "hold_minutes": "Optional: Der Raum gilt so viele Minuten nach dem Abschalten seiner Anwesenheits-Entitäten noch als belegt – nur für Ansagen und Rückfragen. 0 = aus. Praktisch für Melder ohne einstellbare Abklingzeit."
         }
       },
       "home_states": {
@@ -138,7 +140,11 @@
           "name": "Raumname",
           "speaker": "Lautsprecher",
           "presence": "Anwesenheits-Entitäten",
-          "return_room": "Heimkehr-Raum"
+          "return_room": "Heimkehr-Raum",
+          "hold_minutes": "Nachlaufzeit"
+        },
+        "data_description": {
+          "hold_minutes": "Optional: Der Raum gilt so viele Minuten nach dem Abschalten seiner Anwesenheits-Entitäten noch als belegt – nur für Ansagen und Rückfragen. 0 = aus. Praktisch für Melder ohne einstellbare Abklingzeit."
         }
       },
       "edit_room": {
@@ -153,7 +159,11 @@
           "name": "Raumname",
           "speaker": "Lautsprecher",
           "presence": "Anwesenheits-Entitäten",
-          "return_room": "Heimkehr-Raum"
+          "return_room": "Heimkehr-Raum",
+          "hold_minutes": "Nachlaufzeit"
+        },
+        "data_description": {
+          "hold_minutes": "Optional: Der Raum gilt so viele Minuten nach dem Abschalten seiner Anwesenheits-Entitäten noch als belegt – nur für Ansagen und Rückfragen. 0 = aus. Praktisch für Melder ohne einstellbare Abklingzeit."
         }
       },
       "remove_room": {
@@ -238,6 +248,10 @@
         "ignore_quiet_hours": {
           "name": "Ruhezeit ignorieren",
           "description": "Auch während der Ruhezeit ansagen."
+        },
+        "actions": {
+          "name": "Aktionsknöpfe",
+          "description": "Knöpfe im Push. Ohne Link löst ein Knopf das Ereignis mobile_app_notification_action mit der Kennung aus (leer = aus dem Titel gebildet, z. B. PN_GARAGE_OFFNEN). Mit Link öffnet der Knopf ihn."
         }
       }
     },

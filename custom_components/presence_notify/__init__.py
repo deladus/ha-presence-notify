@@ -13,6 +13,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
+    ATTR_ACTIONS,
     ATTR_DATA,
     ATTR_IGNORE_QUIET,
     ATTR_MESSAGE,
@@ -42,6 +43,18 @@ SEND_SCHEMA = vol.Schema(
         vol.Optional(ATTR_DATA, default={}): vol.Any(dict, None),
         vol.Optional(ATTR_SPEAKERS): cv.entity_ids,
         vol.Optional(ATTR_IGNORE_QUIET, default=False): cv.boolean,
+        vol.Optional(ATTR_ACTIONS): vol.All(
+            cv.ensure_list,
+            [
+                vol.Schema(
+                    {
+                        vol.Required("title"): cv.string,
+                        vol.Optional("action"): cv.string,
+                        vol.Optional("uri"): cv.string,
+                    }
+                )
+            ],
+        ),
     }
 )
 ASK_SCHEMA = vol.Schema(
@@ -77,6 +90,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             data.get(ATTR_DATA) or {},
             data.get(ATTR_SPEAKERS),
             data.get(ATTR_IGNORE_QUIET, False),
+            data.get(ATTR_ACTIONS),
         )
 
     async def _deliver(call: ServiceCall) -> None:

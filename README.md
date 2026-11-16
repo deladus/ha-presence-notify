@@ -5,9 +5,9 @@
 *Heimischer Nachrichtendienst* · domain `presence_notify`
 
 > [!WARNING]
-> **Early beta (0.3.0b1).** This integration is at the very beginning of its development. Expect bugs, breaking changes to settings and actions, and missing features. Please don't rely on it for important notifications yet, and report problems via [Issues](https://github.com/deladus/ha-presence-notify/issues).
+> **Early beta (0.3.1b1).** This integration is at the very beginning of its development. Expect bugs, breaking changes to settings and actions, and missing features. Please don't rely on it for important notifications yet, and report problems via [Issues](https://github.com/deladus/ha-presence-notify/issues).
 >
-> **Frühe Beta (0.3.0b1).** Die Integration steht noch ganz am Anfang. Fehler, inkompatible Änderungen an Einstellungen und Aktionen sowie fehlende Funktionen sind zu erwarten. Bitte noch nicht für wichtige Benachrichtigungen verwenden. Probleme gern über [Issues](https://github.com/deladus/ha-presence-notify/issues) melden.
+> **Frühe Beta (0.3.1b1).** Die Integration steht noch ganz am Anfang. Fehler, inkompatible Änderungen an Einstellungen und Aktionen sowie fehlende Funktionen sind zu erwarten. Bitte noch nicht für wichtige Benachrichtigungen verwenden. Probleme gern über [Issues](https://github.com/deladus/ha-presence-notify/issues) melden.
 
 Notifications for Home Assistant that reach whoever is **at home and in earshot**, and don't get lost when nobody is home.
 
@@ -42,7 +42,8 @@ Speakers: Alexa Media Player devices are announced directly via `notify.alexa_me
 1. **General:** quiet hours, optional **home source**, optional AI task entity, optional TTS engine.
    The home source can be a house mode select (e.g. `Home / Away / Vacation`), an "anyone home" sensor or an alarm panel. You pick which states mean "home". If set, it decides whether notifications are stored. The persons then only define who gets push notifications (if none of them is tracked as home, all of them get it).
 2. **Persons:** pick persons, then the notify service for each of them (tip: a notify group with all of a person's devices).
-3. **Rooms:** name, speaker, presence entities, and whether it is a return room. Presence entities can be any `binary_sensor`, `light`, `switch`, `media_player`, `input_boolean` or `device_tracker`. `on`, `home` or `playing` counts as someone being there, so a TV or a hobby room light can count too.
+3. **Rooms:** name, speaker, presence entities, whether it is a return room, and an optional **hold time**. Presence entities can be any `binary_sensor`, `light`, `switch`, `media_player`, `remote`, `input_boolean` or `device_tracker`. `on`, `home` or `playing` counts as someone being there, so a TV, a Harmony Hub activity or a hobby room light can count too.
+   With a hold time, the room still counts as occupied for that many minutes after its presence entities went off – for announcements and questions only, your other automations are not affected. Useful for motion sensors that only send short pulses and have no adjustable cooldown. Questions go to the room with the most recent detection.
 
 Everything can be changed later via *Configure*.
 
@@ -58,7 +59,7 @@ You can try everything without touching your real setup:
 
 | Action | Purpose |
 |---|---|
-| `presence_notify.send` | `title`, `message`, optional `data` (push extras such as `image`, `actions`), `speakers` (limit to these), `ignore_quiet_hours` |
+| `presence_notify.send` | `title`, `message`, optional `data` (push extras such as `image`), `actions` (buttons, see below), `speakers` (limit to these), `ignore_quiet_hours` |
 | `presence_notify.deliver_pending` | Deliver stored notifications now as one briefing |
 | `presence_notify.clear_pending` | Delete stored notifications |
 | `presence_notify.ask` | Yes/no question by push with buttons (optionally also by Alexa). Returns `answer` (`yes`/`no`/`timeout`) and `by`. See [Alexa questions](docs/alexa-rueckfragen.md) |
@@ -69,6 +70,28 @@ data:
   title: Washing machine
   message: The laundry is done.
 ```
+
+### Action buttons
+
+`actions` lets you add buttons in the action editor, no YAML needed: one entry per button with a **title**, an optional **ID** and an optional **link**.
+
+- Without a link, pressing the button fires the event `mobile_app_notification_action` with the ID. Leave the ID empty to have it generated from the title (`Close garage` → `PN_CLOSE_GARAGE`). React to it with an automation using an event trigger.
+- With a link (e.g. `/lovelace/cameras` or a web address), the button opens it.
+
+```yaml
+action: presence_notify.send
+data:
+  title: Garage
+  message: The garage door is still open.
+  actions:
+    - title: Close garage
+    - title: Camera
+      uri: /lovelace/cameras
+```
+
+### Push priority
+
+With **Send push notifications with high priority** (general settings, on by default) every push gets `priority: high`, `ttl: 0` and `importance: high` for Android, and `interruption-level: time-sensitive` for iOS, so it is delivered right away. Values you pass in `data` win; the iOS `push` block is merged.
 
 ## Alexa questions (experts only)
 

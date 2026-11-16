@@ -50,10 +50,12 @@
           "speaker": "Speaker",
           "presence": "Presence entities",
           "return_room": "Return room",
-          "add_another": "Add another room"
+          "add_another": "Add another room",
+          "hold_minutes": "Hold time"
         },
         "data_description": {
-          "return_room": "After coming home, missed notifications are delivered as soon as motion is detected in one of the return rooms, on that room's speaker."
+          "return_room": "After coming home, missed notifications are delivered as soon as motion is detected in one of the return rooms, on that room's speaker.",
+          "hold_minutes": "Optional: the room still counts as occupied for this many minutes after its presence entities went off – for announcements and questions only. 0 = off. Handy for sensors without an adjustable cooldown."
         }
       },
       "home_states": {
@@ -138,7 +140,11 @@
           "name": "Room name",
           "speaker": "Speaker",
           "presence": "Presence entities",
-          "return_room": "Return room"
+          "return_room": "Return room",
+          "hold_minutes": "Hold time"
+        },
+        "data_description": {
+          "hold_minutes": "Optional: the room still counts as occupied for this many minutes after its presence entities went off – for announcements and questions only. 0 = off. Handy for sensors without an adjustable cooldown."
         }
       },
       "edit_room": {
@@ -153,7 +159,11 @@
           "name": "Room name",
           "speaker": "Speaker",
           "presence": "Presence entities",
-          "return_room": "Return room"
+          "return_room": "Return room",
+          "hold_minutes": "Hold time"
+        },
+        "data_description": {
+          "hold_minutes": "Optional: the room still counts as occupied for this many minutes after its presence entities went off – for announcements and questions only. 0 = off. Handy for sensors without an adjustable cooldown."
         }
       },
       "remove_room": {
@@ -238,6 +248,10 @@
         "ignore_quiet_hours": {
           "name": "Ignore quiet hours",
           "description": "Announce even during quiet hours."
+        },
+        "actions": {
+          "name": "Action buttons",
+          "description": "Buttons in the push. Without a link, pressing a button fires the event mobile_app_notification_action with the ID (generated from the title if empty, e.g. PN_OPEN_GARAGE). With a link, the button opens it."
         }
       }
     },

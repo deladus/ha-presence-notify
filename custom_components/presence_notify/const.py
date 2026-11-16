@@ -17,6 +17,8 @@ CONF_ROOM_NAME = "name"
 CONF_SPEAKER = "speaker"
 CONF_PRESENCE = "presence"
 CONF_RETURN_ROOM = "return_room"
+CONF_HOLD = "hold_minutes"
+DEFAULT_HOLD = 0
 CONF_QUIET_START = "quiet_start"
 CONF_QUIET_END = "quiet_end"
 CONF_AI_TASK = "ai_task_entity"
@@ -63,13 +65,17 @@ ATTR_MESSAGE = "message"
 ATTR_DATA = "data"
 ATTR_SPEAKERS = "speakers"
 ATTR_IGNORE_QUIET = "ignore_quiet_hours"
+ATTR_ACTIONS = "actions"
+ACTION_PREFIX = "PN_"
 
 EVENT_DELIVERED = f"{DOMAIN}_delivered"
 SIGNAL_UPDATE = f"{DOMAIN}_update"
 
+# Android: priority/ttl (FCM high priority, no batching), importance (channel)
+# iOS: interruption-level time-sensitive (breaks through Focus modes)
 HIGH_PRIORITY_DATA = {
     "priority": "high",
     "ttl": 0,
     "importance": "high",
-    "push": {"priority": "high"},
+    "push": {"interruption-level": "time-sensitive"},
 }

@@ -32,6 +32,8 @@ from .const import (
     CONF_PERSON,
     CONF_PERSONS,
     CONF_PRESENCE,
+    CONF_HOLD,
+    DEFAULT_HOLD,
     CONF_PUSH_ON_ARRIVAL,
     CONF_QUIET_END,
     CONF_QUIET_START,
@@ -60,6 +62,7 @@ PRESENCE_DOMAINS = [
     "media_player",
     "input_boolean",
     "device_tracker",
+    "remote",
 ]
 
 
@@ -144,6 +147,11 @@ def _room_schema(
             )
         ),
         vol.Required(CONF_RETURN_ROOM, default=False): selector.BooleanSelector(),
+        vol.Required(CONF_HOLD, default=DEFAULT_HOLD): selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=0, max=60, unit_of_measurement="min", mode=selector.NumberSelectorMode.BOX
+            )
+        ),
     }
     if with_add_another:
         fields[vol.Required(CONF_ADD_ANOTHER, default=False)] = selector.BooleanSelector()
@@ -207,6 +215,7 @@ def _clean_room(user_input: dict[str, Any]) -> dict[str, Any]:
         CONF_SPEAKER: user_input.get(CONF_SPEAKER),
         CONF_PRESENCE: list(user_input.get(CONF_PRESENCE) or []),
         CONF_RETURN_ROOM: bool(user_input.get(CONF_RETURN_ROOM)),
+        CONF_HOLD: int(user_input.get(CONF_HOLD) or 0),
     }
 
 
