@@ -17,6 +17,8 @@ from homeassistant.helpers import selector
 
 from .const import (
     CONF_AI_TASK,
+    CONF_ASK_ALEXA,
+    CONF_ASK_SCRIPT,
     CONF_HIGH_PRIORITY,
     CONF_HOME_ENTITY,
     CONF_HOME_STATES,
@@ -39,6 +41,7 @@ from .const import (
     DEFAULT_MAX_PENDING,
     DEFAULT_QUIET_END,
     DEFAULT_QUIET_START,
+    DOCS_ALEXA_URL,
     DOMAIN,
     HOME_ENTITY_DOMAINS,
     PERSON_DOMAINS,
@@ -78,6 +81,7 @@ def _general_schema(full: bool) -> vol.Schema:
         vol.Optional(CONF_TTS_ENTITY): selector.EntitySelector(
             selector.EntitySelectorConfig(domain="tts")
         ),
+        vol.Required(CONF_ASK_ALEXA, default=False): selector.BooleanSelector(),
     }
     if full:
         fields.update(
@@ -162,6 +166,15 @@ def _home_states_schema(hass: HomeAssistant, entity_id: str, current: list[str])
     )
 
 
+ASK_ALEXA_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_ASK_SCRIPT): selector.EntitySelector(
+            selector.EntitySelectorConfig(domain="script")
+        )
+    }
+)
+
+
 def _clean_room(user_input: dict[str, Any]) -> dict[str, Any]:
     return {
         CONF_ROOM_NAME: user_input[CONF_ROOM_NAME].strip(),
@@ -220,13 +233,33 @@ class PresenceNotifyConfigFlow(_PersonsMixin, ConfigFlow, domain=DOMAIN):
             self._opts.update(user_input)
             if user_input.get(CONF_HOME_ENTITY):
                 return await self.async_step_home_states()
+            return await self._after_home_states()
+        return self.async_show_form(
+            step_id="user",
+            data_schema=_general_schema(False),
+            description_placeholders={"docs_url": DOCS_ALEXA_URL},
+        )
+
+    async def _after_home_states(self) -> ConfigFlowResult:
+        if self._opts.get(CONF_ASK_ALEXA):
+            return await self.async_step_ask_alexa()
+        self._opts.pop(CONF_ASK_SCRIPT, None)
+        return await self.async_step_persons()
+
+    async def async_step_ask_alexa(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            self._opts[CONF_ASK_SCRIPT] = user_input[CONF_ASK_SCRIPT]
             return await self.async_step_persons()
-        return self.async_show_form(step_id="user", data_schema=_general_schema(False))
+        return self.async_show_form(
+            step_id="ask_alexa",
+            data_schema=ASK_ALEXA_SCHEMA,
+            description_placeholders={"docs_url": DOCS_ALEXA_URL},
+        )
 
     async def async_step_home_states(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             self._opts[CONF_HOME_STATES] = user_input[CONF_HOME_STATES]
-            return await self.async_step_persons()
+            return await self._after_home_states()
         return self.async_show_form(
             step_id="home_states",
             data_schema=_home_states_schema(self.hass, self._opts[CONF_HOME_ENTITY], []),
@@ -303,14 +336,35 @@ class PresenceNotifyOptionsFlow(_PersonsMixin, OptionsFlow):
             if user_input.get(CONF_HOME_ENTITY):
                 return await self.async_step_home_states()
             self._opts.pop(CONF_HOME_STATES, None)
-            return self._save()
+            return await self._after_home_states()
         schema = self.add_suggested_values_to_schema(_general_schema(True), self._opts)
-        return self.async_show_form(step_id="general", data_schema=schema)
+        return self.async_show_form(
+            step_id="general",
+            data_schema=schema,
+            description_placeholders={"docs_url": DOCS_ALEXA_URL},
+        )
+
+    async def _after_home_states(self) -> ConfigFlowResult:
+        if self._opts.get(CONF_ASK_ALEXA):
+            return await self.async_step_ask_alexa()
+        self._opts.pop(CONF_ASK_SCRIPT, None)
+        return self._save()
+
+    async def async_step_ask_alexa(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            self._opts[CONF_ASK_SCRIPT] = user_input[CONF_ASK_SCRIPT]
+            return self._save()
+        schema = self.add_suggested_values_to_schema(ASK_ALEXA_SCHEMA, self._opts)
+        return self.async_show_form(
+            step_id="ask_alexa",
+            data_schema=schema,
+            description_placeholders={"docs_url": DOCS_ALEXA_URL},
+        )
 
     async def async_step_home_states(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             self._opts[CONF_HOME_STATES] = user_input[CONF_HOME_STATES]
-            return self._save()
+            return await self._after_home_states()
         return self.async_show_form(
             step_id="home_states",
             data_schema=_home_states_schema(

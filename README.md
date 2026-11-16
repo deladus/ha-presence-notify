@@ -5,9 +5,9 @@
 *Heimischer Nachrichtendienst* · domain `presence_notify`
 
 > [!WARNING]
-> **Early beta (0.2.0b2).** This integration is at the very beginning of its development. Expect bugs, breaking changes to settings and actions, and missing features. Please don't rely on it for important notifications yet, and report problems via [Issues](https://github.com/deladus/ha-presence-notify/issues).
+> **Early beta (0.3.0b1).** This integration is at the very beginning of its development. Expect bugs, breaking changes to settings and actions, and missing features. Please don't rely on it for important notifications yet, and report problems via [Issues](https://github.com/deladus/ha-presence-notify/issues).
 >
-> **Frühe Beta (0.2.0b2).** Die Integration steht noch ganz am Anfang. Fehler, inkompatible Änderungen an Einstellungen und Aktionen sowie fehlende Funktionen sind zu erwarten. Bitte noch nicht für wichtige Benachrichtigungen verwenden. Probleme gern über [Issues](https://github.com/deladus/ha-presence-notify/issues) melden.
+> **Frühe Beta (0.3.0b1).** Die Integration steht noch ganz am Anfang. Fehler, inkompatible Änderungen an Einstellungen und Aktionen sowie fehlende Funktionen sind zu erwarten. Bitte noch nicht für wichtige Benachrichtigungen verwenden. Probleme gern über [Issues](https://github.com/deladus/ha-presence-notify/issues) melden.
 
 Notifications for Home Assistant that reach whoever is **at home and in earshot**, and don't get lost when nobody is home.
 
@@ -60,6 +60,7 @@ You can try everything without touching your real setup:
 | `presence_notify.send` | `title`, `message`, optional `data` (push extras such as `image`, `actions`), `speakers` (limit to these), `ignore_quiet_hours` |
 | `presence_notify.deliver_pending` | Deliver stored notifications now as one briefing |
 | `presence_notify.clear_pending` | Delete stored notifications |
+| `presence_notify.ask` | Yes/no question by push with buttons (optionally also by Alexa). Returns `answer` (`yes`/`no`/`timeout`) and `by`. See [Alexa questions](docs/alexa-rueckfragen.md) |
 
 ```yaml
 action: presence_notify.send
@@ -67,6 +68,10 @@ data:
   title: Washing machine
   message: The laundry is done.
 ```
+
+## Alexa questions (experts only)
+
+`presence_notify.ask` always works by push with buttons. With the switch **Alexa questions (experts only)** in the general settings, Alexa also asks in the room where someone is detected. This needs the [Alexa Actionable Notifications](https://github.com/keatontaylor/alexa-actions) skill and its script – see the **[guide](docs/alexa-rueckfragen.md)** (German/English).
 
 ## Entities
 

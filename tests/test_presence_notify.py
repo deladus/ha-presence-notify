@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.data_entry_flow import FlowResultType
@@ -374,3 +376,82 @@ async def test_room_selectors_hide_used_entities(hass: HomeAssistant) -> None:
     schema = result["data_schema"].schema
     assert "media_player.kueche" not in schema["speaker"].config["exclude_entities"]
     assert schema["presence"].config["exclude_entities"] == ["binary_sensor.wz"]
+
+
+async def _ask_task(hass, **data):
+    return hass.async_create_task(hass.services.async_call(
+        DOMAIN, "ask", {"title": "Trockner", "question": "Starten?", **data},
+        blocking=True, return_response=True))
+
+
+async def test_ask_push_yes(hass: HomeAssistant) -> None:
+    calls = _register_services(hass)
+    await _setup(hass, home=True)
+    task = await _ask_task(hass)
+    await asyncio.sleep(0.05)
+    pushes = [c for c in calls["push"] if c.data.get("message") == "Starten?"]
+    assert len(pushes) == 2  # both at home
+    actions = pushes[0].data["data"]["actions"]
+    assert [a["title"] for a in actions] == ["Yes", "No"]
+    hass.bus.async_fire("mobile_app_notification_action", {"action": actions[0]["action"]})
+    result = await task
+    assert result["answer"] == "yes"
+    # questions cleared + info to the others
+    assert any(c.data.get("message") == "clear_notification" for c in calls["push"])
+
+
+async def test_ask_nobody_home_forward_and_timeout(hass: HomeAssistant) -> None:
+    calls = _register_services(hass)
+    await _setup(hass, home=False)
+    task = await _ask_task(hass, timeout=0.05)
+    await asyncio.sleep(0.05)
+    first = [c for c in calls["push"] if c.data.get("message") == "Starten?"]
+    assert len(first) == 1  # only the first person
+    actions = first[0].data["data"]["actions"]
+    assert [a["title"] for a in actions] == ["Yes", "No", "Pass on"]
+    hass.bus.async_fire("mobile_app_notification_action", {"action": actions[2]["action"]})
+    await asyncio.sleep(0.05)
+    fwd = [c for c in calls["push"] if "passed on" in c.data.get("message", "")]
+    assert len(fwd) == 1
+    result = await task
+    assert result == {"answer": "timeout", "by": ""}
+
+
+async def test_ask_via_alexa(hass: HomeAssistant, monkeypatch) -> None:
+    calls = _register_services(hass)
+    script_calls = []
+
+    async def script_turn_on(call):
+        script_calls.append(call)
+    hass.services.async_register("script", "turn_on", script_turn_on)
+    alexa = []
+
+    async def alexa_notify(call):
+        alexa.append(call)
+    hass.services.async_register("notify", "alexa_media", alexa_notify)
+
+    await _setup(hass, home=True, ask_alexa=True, ask_alexa_script="script.alexa_frage")
+    hass.states.async_set("binary_sensor.kueche", "on")
+    import custom_components.presence_notify.manager as m
+    monkeypatch.setattr(m.PresenceNotifyManager, "in_quiet_hours", lambda self, now=None: False)
+    task = await _ask_task(hass)
+    await asyncio.sleep(0.05)
+    assert len(script_calls) == 1
+    variables = script_calls[0].data["variables"]
+    assert variables["alexa_device"] == "media_player.kueche"
+    hass.bus.async_fire("alexa_actionable_notification",
+                        {"event_id": variables["event_id"], "event_response_type": "ResponseNo"})
+    result = await task
+    assert result == {"answer": "no", "by": "Alexa"}
+    assert alexa and alexa[-1].data["data"]["type"] == "tts"
+
+
+async def test_config_flow_ask_alexa_step(hass: HomeAssistant) -> None:
+    hass.states.async_set("person.dennis", "home")
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    assert result["description_placeholders"]["docs_url"].endswith("alexa-rueckfragen.md")
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {
+        "quiet_start": "22:30:00", "quiet_end": "08:00:00", "ask_alexa": True})
+    assert result["step_id"] == "ask_alexa"
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"ask_alexa_script": "script.x"})
+    assert result["step_id"] == "persons"

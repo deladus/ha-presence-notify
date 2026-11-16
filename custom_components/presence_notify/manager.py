@@ -30,6 +30,8 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_AI_TASK,
+    CONF_ASK_ALEXA,
+    CONF_ASK_SCRIPT,
     CONF_HIGH_PRIORITY,
     CONF_HOME_ENTITY,
     CONF_HOME_STATES,
@@ -69,6 +71,16 @@ AI_ATTEMPTS = 2
 
 TEXTS = {
     "de": {
+        "yes": "Ja",
+        "no": "Nein",
+        "forward": "Weitergeben",
+        "forwarded": "(von {name} weitergegeben)",
+        "decided": "{who} hat entschieden: {result}.",
+        "by_alexa": "Per Alexa entschieden",
+        "result_yes": "ja",
+        "result_no": "nein",
+        "ok_yes": "Alles klar.",
+        "ok_no": "In Ordnung, vielleicht später.",
         "missed": "Verpasst",
         "welcome": "Willkommen zu Hause",
         "times": "{n}-mal, zuerst {first}",
@@ -89,6 +101,16 @@ TEXTS = {
         "item_repeat": " [{n}-mal aufgetreten, zuerst {first}]",
     },
     "en": {
+        "yes": "Yes",
+        "no": "No",
+        "forward": "Pass on",
+        "forwarded": "(passed on by {name})",
+        "decided": "{who} decided: {result}.",
+        "by_alexa": "Decided via Alexa",
+        "result_yes": "yes",
+        "result_no": "no",
+        "ok_yes": "All right.",
+        "ok_no": "Okay, maybe later.",
         "missed": "Missed",
         "welcome": "Welcome home",
         "times": "{n} times, first at {first}",
@@ -616,6 +638,181 @@ class PresenceNotifyManager:
             if attempt < AI_ATTEMPTS:
                 await asyncio.sleep(2)
         return self._fallback_text(items)
+
+
+    # -------------------------------------------------------------------- ask
+
+    def _detected_speaker(self, allowed: list[str] | None) -> str | None:
+        """Speaker of the first room where someone is detected (no fallback)."""
+        for room in self.rooms:
+            speaker = room.get(CONF_SPEAKER)
+            if not speaker or (allowed is not None and speaker not in allowed):
+                continue
+            if self._room_occupied(room):
+                return speaker
+        return None
+
+    def _person_name(self, entity_id: str) -> str:
+        state = self.hass.states.get(entity_id)
+        return state.name if state else entity_id
+
+    async def async_ask(
+        self,
+        title: str,
+        question: str,
+        timeout_min: float = 15,
+        text_yes: str | None = None,
+        text_no: str | None = None,
+        speakers: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Ask yes/no by push (and Alexa if enabled). First answer wins.
+
+        Returns {"answer": "yes"|"no"|"timeout", "by": <name or "Alexa" or "">}.
+        """
+        t = self.texts
+        ask_id = uuid.uuid4().hex[:10]
+        tag = f"{DOMAIN}_ask_{ask_id}"
+        a_yes, a_no, a_fwd = f"PN_YES_{ask_id}", f"PN_NO_{ask_id}", f"PN_FWD_{ask_id}"
+
+        home = self.persons_home() if self.someone_home() else []
+        forwarded_to: list[dict[str, str]] = []
+        if home:
+            asked = list(home)
+            can_forward = False
+        else:
+            asked = self.persons[:1]
+            can_forward = len(self.persons) > 1
+        others = [p for p in self.persons if p not in asked]
+
+        def _actions(with_forward: bool) -> list[dict[str, str]]:
+            acts = [{"action": a_yes, "title": t["yes"]}, {"action": a_no, "title": t["no"]}]
+            if with_forward:
+                acts.append({"action": a_fwd, "title": t["forward"]})
+            return acts
+
+        async def _push_to(persons: list[dict[str, str]], message: str, with_forward: bool) -> None:
+            data = {**HIGH_PRIORITY_DATA, "tag": tag, "actions": _actions(with_forward)}
+            for person in persons:
+                await self._notify_person(person, title, message, data)
+
+        answer: asyncio.Future[tuple[str, str]] = self.hass.loop.create_future()
+
+        def _name_from_context(event: Event) -> str:
+            user_id = event.context.user_id
+            for state in self.hass.states.async_all("person"):
+                if user_id and state.attributes.get("user_id") == user_id:
+                    return state.name
+            return ""
+
+        @callback
+        def _on_push(event: Event) -> None:
+            action = event.data.get("action")
+            if answer.done():
+                return
+            if action == a_yes:
+                answer.set_result(("yes", _name_from_context(event)))
+            elif action == a_no:
+                answer.set_result(("no", _name_from_context(event)))
+            elif action == a_fwd and others and not forwarded_to:
+                forwarded_to.extend(others)
+                name = _name_from_context(event) or self._person_name(asked[0][CONF_PERSON])
+                self.hass.async_create_task(
+                    _push_to(others, f"{question} {t['forwarded'].format(name=name)}", False)
+                )
+
+        @callback
+        def _on_alexa(event: Event) -> None:
+            if answer.done() or event.data.get("event_id") != tag:
+                return
+            kind = event.data.get("event_response_type")
+            if kind == "ResponseYes":
+                answer.set_result(("yes", "Alexa"))
+            elif kind == "ResponseNo":
+                answer.set_result(("no", "Alexa"))
+
+        unsubs = [
+            self.hass.bus.async_listen("mobile_app_notification_action", _on_push),
+            self.hass.bus.async_listen("alexa_actionable_notification", _on_alexa),
+        ]
+
+        await _push_to(asked, question, can_forward)
+
+        alexa_speaker = None
+        script = self.options.get(CONF_ASK_SCRIPT)
+        if self.options.get(CONF_ASK_ALEXA) and script and home and not self.in_quiet_hours():
+            alexa_speaker = self._detected_speaker(speakers)
+            if alexa_speaker:
+                try:
+                    await self.hass.services.async_call(
+                        "script",
+                        "turn_on",
+                        {
+                            "entity_id": script,
+                            "variables": {
+                                "text": question,
+                                "event_id": tag,
+                                "alexa_device": alexa_speaker,
+                                "suppress_confirmation": "true",
+                            },
+                        },
+                        blocking=True,
+                    )
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.warning("Alexa question via %s failed: %s", script, err)
+                    alexa_speaker = None
+
+        try:
+            async with asyncio.timeout(max(float(timeout_min), 0.05) * 60):
+                result, by = await answer
+        except TimeoutError:
+            result, by = "timeout", ""
+        finally:
+            for unsub in unsubs:
+                unsub()
+
+        # remove the question everywhere
+        for person in asked + forwarded_to:
+            await self._notify_person(person, "", "clear_notification", {"tag": tag})
+
+        # Alexa confirms its own question
+        if by == "Alexa" and alexa_speaker:
+            reply = (text_yes or t["ok_yes"]) if result == "yes" else (text_no or t["ok_no"])
+            try:
+                await self.hass.services.async_call(
+                    "notify",
+                    "alexa_media",
+                    {"message": _NON_LATIN1.sub("", reply), "target": [alexa_speaker], "data": {"type": "tts"}},
+                    blocking=True,
+                )
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning("Alexa confirmation failed: %s", err)
+
+        # tell the others who decided, when several people were asked
+        if result in ("yes", "no") and len(asked + forwarded_to) > 1:
+            who = t["by_alexa"] if by == "Alexa" else (by or "?")
+            info = t["decided"].format(
+                who=who, result=t["result_yes"] if result == "yes" else t["result_no"]
+            )
+            for person in asked + forwarded_to:
+                if by and self._person_name(person[CONF_PERSON]) == by:
+                    continue
+                await self._notify_person(person, title, info, {"tag": f"{tag}_info"})
+
+        return {"answer": result, "by": by}
+
+    async def _notify_person(
+        self, person: dict[str, str], title: str, message: str, data: dict[str, Any]
+    ) -> None:
+        domain, _, name = person.get(CONF_NOTIFY, "").partition(".")
+        if domain != "notify" or not name:
+            return
+        payload: dict[str, Any] = {"message": message, "data": data}
+        if title:
+            payload["title"] = title
+        try:
+            await self.hass.services.async_call("notify", name, payload, blocking=True)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.error("Push via notify.%s failed: %s", name, err)
 
     # ----------------------------------------------------------- push/announce
 

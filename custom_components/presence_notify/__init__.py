@@ -7,7 +7,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
@@ -16,10 +16,15 @@ from .const import (
     ATTR_DATA,
     ATTR_IGNORE_QUIET,
     ATTR_MESSAGE,
+    ATTR_QUESTION,
     ATTR_SPEAKERS,
+    ATTR_TEXT_NO,
+    ATTR_TEXT_YES,
+    ATTR_TIMEOUT,
     ATTR_TITLE,
     DOMAIN,
     PLATFORMS,
+    SERVICE_ASK,
     SERVICE_CLEAR,
     SERVICE_DELIVER,
     SERVICE_SEND,
@@ -37,6 +42,16 @@ SEND_SCHEMA = vol.Schema(
         vol.Optional(ATTR_DATA, default={}): vol.Any(dict, None),
         vol.Optional(ATTR_SPEAKERS): cv.entity_ids,
         vol.Optional(ATTR_IGNORE_QUIET, default=False): cv.boolean,
+    }
+)
+ASK_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_TITLE): cv.string,
+        vol.Required(ATTR_QUESTION): cv.string,
+        vol.Optional(ATTR_TIMEOUT, default=15): vol.All(vol.Coerce(float), vol.Range(min=0.05, max=240)),
+        vol.Optional(ATTR_TEXT_YES): cv.string,
+        vol.Optional(ATTR_TEXT_NO): cv.string,
+        vol.Optional(ATTR_SPEAKERS): cv.entity_ids,
     }
 )
 DELIVER_SCHEMA = vol.Schema({vol.Optional(ATTR_SPEAKERS): cv.entity_ids})
@@ -75,6 +90,21 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         DOMAIN, SERVICE_DELIVER, _deliver, schema=DELIVER_SCHEMA
     )
     hass.services.async_register(DOMAIN, SERVICE_CLEAR, _clear)
+
+    async def _ask(call: ServiceCall) -> ServiceResponse:
+        data = call.data
+        return await _manager(hass).async_ask(
+            data[ATTR_TITLE],
+            data[ATTR_QUESTION],
+            data.get(ATTR_TIMEOUT, 15),
+            data.get(ATTR_TEXT_YES),
+            data.get(ATTR_TEXT_NO),
+            data.get(ATTR_SPEAKERS),
+        )
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_ASK, _ask, schema=ASK_SCHEMA, supports_response=SupportsResponse.ONLY
+    )
     return True
 
 

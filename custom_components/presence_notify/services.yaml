@@ -38,3 +38,40 @@ deliver_pending:
           multiple: true
 
 clear_pending:
+
+ask:
+  fields:
+    title:
+      required: true
+      example: "Dryer"
+      selector:
+        text:
+    question:
+      required: true
+      example: "The dryer is ready. Start now?"
+      selector:
+        text:
+          multiline: true
+    timeout:
+      required: false
+      default: 15
+      selector:
+        number:
+          min: 1
+          max: 240
+          unit_of_measurement: min
+          mode: box
+    text_yes:
+      required: false
+      selector:
+        text:
+    text_no:
+      required: false
+      selector:
+        text:
+    speakers:
+      required: false
+      selector:
+        entity:
+          domain: media_player
+          multiple: true

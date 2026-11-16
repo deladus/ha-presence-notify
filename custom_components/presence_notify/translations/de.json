@@ -13,12 +13,14 @@
           "quiet_end": "Ruhezeit Ende",
           "ai_task_entity": "KI-Aufgabe für das Briefing (optional)",
           "tts_entity": "TTS-Dienst für Nicht-Alexa-Lautsprecher (optional)",
-          "home_entity": "Anwesenheitsquelle (optional)"
+          "home_entity": "Anwesenheitsquelle (optional)",
+          "ask_alexa": "Alexa-Rückfragen (nur für Experten)"
         },
         "data_description": {
           "ai_task_entity": "Fasst mehrere verpasste Nachrichten zu einer Ansage zusammen. Ohne KI wird eine einfache Liste vorgelesen.",
           "tts_entity": "Alexa-Media-Lautsprecher werden direkt angesprochen, andere Lautsprecher brauchen einen TTS-Dienst.",
-          "home_entity": "Z. B. ein Hausmodus (Auswahlliste) oder ein Ist-jemand-zuhause-Sensor. Wenn gesetzt, entscheidet sie, ob jemand zu Hause ist; die Personen legen dann nur fest, wer Push bekommt."
+          "home_entity": "Z. B. ein Hausmodus (Auswahlliste) oder ein Ist-jemand-zuhause-Sensor. Wenn gesetzt, entscheidet sie, ob jemand zu Hause ist; die Personen legen dann nur fest, wer Push bekommt.",
+          "ask_alexa": "Alexa kann Ja/Nein-Fragen in dem Raum stellen, in dem gerade jemand erkannt wird. Funktioniert nur, wenn der Alexa-Skill „Actionable Notifications“ samt Skript in Home Assistant bereits eingerichtet ist. Nur für Experten empfohlen – siehe Anleitung: {docs_url}"
         }
       },
       "persons": {
@@ -58,6 +60,13 @@
         "data": {
           "home_states": "Zustände für „zu Hause“"
         }
+      },
+      "ask_alexa": {
+        "title": "Alexa-Rückfragen",
+        "description": "Wähle das Skript, das eine Alexa Actionable Notification startet (meist script.activate_alexa_actionable_notification). Es muss die Variablen text, event_id, alexa_device und suppress_confirmation annehmen. Anleitung: {docs_url}",
+        "data": {
+          "ask_alexa_script": "Skript für Alexa-Rückfragen"
+        }
       }
     }
   },
@@ -85,12 +94,14 @@
           "push_images_separately": "Mehrere gespeicherte Nachrichten mit Bild zusätzlich einzeln pushen",
           "push_on_arrival": "Briefing-Push sofort bei der Heimkehr",
           "home_entity": "Anwesenheitsquelle (optional)",
-          "image_merge_seconds": "Gleiche Meldungen mit Bild zusammenfassen innerhalb von"
+          "image_merge_seconds": "Gleiche Meldungen mit Bild zusammenfassen innerhalb von",
+          "ask_alexa": "Alexa-Rückfragen (nur für Experten)"
         },
         "data_description": {
           "push_on_arrival": "Sonst kommt der Push erst bei Bewegung im Heimkehr-Raum, zusammen mit der Ansage.",
           "home_entity": "Z. B. ein Hausmodus (Auswahlliste) oder ein Ist-jemand-zuhause-Sensor. Wenn gesetzt, entscheidet sie, ob jemand zu Hause ist; die Personen legen dann nur fest, wer Push bekommt.",
-          "image_merge_seconds": "Jede Meldung mit Bild (z. B. Türklingel) behält ihren eigenen Schnappschuss. Nur eine gleiche Meldung innerhalb dieser Zeit wird zusammengefasst (dieselbe Person klingelt nochmal)."
+          "image_merge_seconds": "Jede Meldung mit Bild (z. B. Türklingel) behält ihren eigenen Schnappschuss. Nur eine gleiche Meldung innerhalb dieser Zeit wird zusammengefasst (dieselbe Person klingelt nochmal).",
+          "ask_alexa": "Alexa kann Ja/Nein-Fragen in dem Raum stellen, in dem gerade jemand erkannt wird. Funktioniert nur, wenn der Alexa-Skill „Actionable Notifications“ samt Skript in Home Assistant bereits eingerichtet ist. Nur für Experten empfohlen – siehe Anleitung: {docs_url}"
         }
       },
       "persons": {
@@ -144,6 +155,13 @@
         "description": "Welche Zustände von {entity} bedeuten, dass jemand zu Hause ist?",
         "data": {
           "home_states": "Zustände für „zu Hause“"
+        }
+      },
+      "ask_alexa": {
+        "title": "Alexa-Rückfragen",
+        "description": "Wähle das Skript, das eine Alexa Actionable Notification startet (meist script.activate_alexa_actionable_notification). Es muss die Variablen text, event_id, alexa_device und suppress_confirmation annehmen. Anleitung: {docs_url}",
+        "data": {
+          "ask_alexa_script": "Skript für Alexa-Rückfragen"
         }
       }
     }
@@ -216,6 +234,36 @@
     "clear_pending": {
       "name": "Gespeicherte Nachrichten löschen",
       "description": "Alle gespeicherten Nachrichten löschen, ohne sie zuzustellen."
+    },
+    "ask": {
+      "name": "Fragen",
+      "description": "Stellt allen, die zu Hause sind, eine Ja/Nein-Frage per Push (mit Knöpfen) und – wenn aktiviert – per Alexa im Raum, in dem jemand erkannt wird. Die erste Antwort gewinnt. Gibt answer (yes/no/timeout) und by zurück.",
+      "fields": {
+        "title": {
+          "name": "Titel",
+          "description": "Titel des Push."
+        },
+        "question": {
+          "name": "Frage",
+          "description": "Die Ja/Nein-Frage."
+        },
+        "timeout": {
+          "name": "Antwortzeit",
+          "description": "Minuten, die auf eine Antwort gewartet wird."
+        },
+        "text_yes": {
+          "name": "Alexa-Antwort auf Ja",
+          "description": "Was Alexa nach einem Ja per Alexa sagt."
+        },
+        "text_no": {
+          "name": "Alexa-Antwort auf Nein",
+          "description": "Was Alexa nach einem Nein per Alexa sagt."
+        },
+        "speakers": {
+          "name": "Lautsprecher",
+          "description": "Nur auf diesen Lautsprechern fragen."
+        }
+      }
     }
   },
   "device": {
