@@ -59,7 +59,7 @@ def _notify_services(hass: HomeAssistant) -> list[str]:
     return sorted(
         f"notify.{name}"
         for name in hass.services.async_services_for_domain("notify")
-        if name not in skip
+        if name not in skip and not name.startswith("alexa_media")
     )
 
 
