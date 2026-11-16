@@ -55,7 +55,7 @@
         },
         "data_description": {
           "return_room": "After coming home, missed notifications are delivered as soon as motion is detected in one of the return rooms, on that room's speaker.",
-          "hold_minutes": "How long the room still counts as occupied after the last signal of its presence entities – for announcements and questions only, other automations are not affected. 0 = off: the room only counts as occupied while an entity is currently active (no extra cooldown). Handy for sensors whose cooldown cannot be adjusted."
+          "hold_minutes": "How long the room still counts as occupied after the last signal of its presence entities – for announcements and questions only, other automations are not affected. 0 = off: the room only counts as occupied while an entity is currently active (no extra cooldown). Handy for sensors whose cooldown cannot be adjusted. Note: this is added to the sensor's own cooldown (sensor 10 min + 5 min here = 15 min occupied) – it cannot shorten it. If the sensor's cooldown already fits, leave this at 0."
         }
       },
       "home_states": {
@@ -144,7 +144,7 @@
           "hold_minutes": "Presence cooldown (minutes)"
         },
         "data_description": {
-          "hold_minutes": "How long the room still counts as occupied after the last signal of its presence entities – for announcements and questions only, other automations are not affected. 0 = off: the room only counts as occupied while an entity is currently active (no extra cooldown). Handy for sensors whose cooldown cannot be adjusted."
+          "hold_minutes": "How long the room still counts as occupied after the last signal of its presence entities – for announcements and questions only, other automations are not affected. 0 = off: the room only counts as occupied while an entity is currently active (no extra cooldown). Handy for sensors whose cooldown cannot be adjusted. Note: this is added to the sensor's own cooldown (sensor 10 min + 5 min here = 15 min occupied) – it cannot shorten it. If the sensor's cooldown already fits, leave this at 0."
         }
       },
       "edit_room": {
@@ -163,7 +163,7 @@
           "hold_minutes": "Presence cooldown (minutes)"
         },
         "data_description": {
-          "hold_minutes": "How long the room still counts as occupied after the last signal of its presence entities – for announcements and questions only, other automations are not affected. 0 = off: the room only counts as occupied while an entity is currently active (no extra cooldown). Handy for sensors whose cooldown cannot be adjusted."
+          "hold_minutes": "How long the room still counts as occupied after the last signal of its presence entities – for announcements and questions only, other automations are not affected. 0 = off: the room only counts as occupied while an entity is currently active (no extra cooldown). Handy for sensors whose cooldown cannot be adjusted. Note: this is added to the sensor's own cooldown (sensor 10 min + 5 min here = 15 min occupied) – it cannot shorten it. If the sensor's cooldown already fits, leave this at 0."
         }
       },
       "remove_room": {
