@@ -1,11 +1,12 @@
 {
+  "title": "Heimischer Nachrichtendienst",
   "config": {
     "abort": {
-      "single_instance_allowed": "Presence Notify ist bereits eingerichtet."
+      "single_instance_allowed": "Heimischer Nachrichtendienst ist bereits eingerichtet."
     },
     "step": {
       "user": {
-        "title": "Presence Notify",
+        "title": "Heimischer Nachrichtendienst",
         "description": "Allgemeine Einstellungen. Während der Ruhezeit werden keine Ansagen abgespielt (außer dem Briefing nach der Heimkehr).",
         "data": {
           "quiet_start": "Ruhezeit Beginn",
@@ -51,7 +52,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Presence Notify",
+        "title": "Heimischer Nachrichtendienst",
         "menu_options": {
           "general": "Allgemeine Einstellungen",
           "persons": "Personen und Push-Dienste",
@@ -69,7 +70,11 @@
           "tts_entity": "TTS-Dienst für Nicht-Alexa-Lautsprecher (optional)",
           "max_pending": "Maximal gespeicherte Nachrichten",
           "high_priority_push": "Push mit hoher Priorität senden",
-          "push_images_separately": "Gespeicherte Nachrichten mit Bild zusätzlich einzeln pushen"
+          "push_images_separately": "Gespeicherte Nachrichten mit Bild zusätzlich einzeln pushen",
+          "push_on_arrival": "Briefing-Push sofort bei der Heimkehr"
+        },
+        "data_description": {
+          "push_on_arrival": "Sonst kommt der Push erst bei Bewegung im Heimkehr-Raum, zusammen mit der Ansage."
         }
       },
       "persons": {
@@ -142,7 +147,7 @@
   },
   "exceptions": {
     "not_loaded": {
-      "message": "Presence Notify ist nicht eingerichtet."
+      "message": "Heimischer Nachrichtendienst ist nicht eingerichtet."
     }
   },
   "services": {
@@ -185,6 +190,11 @@
     "clear_pending": {
       "name": "Gespeicherte Nachrichten löschen",
       "description": "Alle gespeicherten Nachrichten löschen, ohne sie zuzustellen."
+    }
+  },
+  "device": {
+    "service": {
+      "name": "Heimischer Nachrichtendienst"
     }
   }
 }

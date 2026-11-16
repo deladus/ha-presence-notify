@@ -1,4 +1,4 @@
-"""Core logic of Presence Notify.
+"""Core logic of Domestic Intelligence Service.
 
 Responsibilities:
 - send: push to persons at home and announce on speakers in earshot,
@@ -35,6 +35,7 @@ from .const import (
     CONF_PERSON,
     CONF_PERSONS,
     CONF_PRESENCE,
+    CONF_PUSH_ON_ARRIVAL,
     CONF_QUIET_END,
     CONF_QUIET_START,
     CONF_RETURN_ROOM,
@@ -122,6 +123,7 @@ class PresenceNotifyManager:
         self._wait_unsub: Callable[[], None] | None = None
         self._someone_home: bool = False
         self._deliver_lock = asyncio.Lock()
+        self._prepared: tuple[list[dict[str, Any]], str, str] | None = None
 
     # ------------------------------------------------------------------ config
 
@@ -343,7 +345,7 @@ class PresenceNotifyManager:
             if old is not None and old.state in PRESENCE_ON_STATES:
                 return
             room = entity_to_room.get(event.data["entity_id"])
-            self._stop_waiting()
+            self._stop_waiting(keep_prepared=True)
             speakers = [room[CONF_SPEAKER]] if room and room.get(CONF_SPEAKER) else None
             self.hass.async_create_task(self.async_deliver(speakers))
 
@@ -351,11 +353,15 @@ class PresenceNotifyManager:
             self.hass, list(entity_to_room), _motion
         )
         self.waiting = True
+        if self.options.get(CONF_PUSH_ON_ARRIVAL, True):
+            self.hass.async_create_task(self._async_push_on_arrival())
         _LOGGER.debug("Waiting for motion in %s", [r[CONF_ROOM_NAME] for r in rooms])
         async_dispatcher_send(self.hass, SIGNAL_UPDATE)
 
     @callback
-    def _stop_waiting(self) -> None:
+    def _stop_waiting(self, keep_prepared: bool = False) -> None:
+        if not keep_prepared:
+            self._prepared = None
         if self._wait_unsub:
             self._wait_unsub()
             self._wait_unsub = None
@@ -363,12 +369,50 @@ class PresenceNotifyManager:
             self.waiting = False
             async_dispatcher_send(self.hass, SIGNAL_UPDATE)
 
+    async def _compose(self, items: list[dict[str, Any]]) -> tuple[str, str, dict[str, Any]]:
+        """Title, text and push data for a set of stored messages."""
+        t = self.texts
+        if len(items) == 1:
+            item = items[0]
+            message = item["message"]
+            if int(item.get("count", 1)) > 1:
+                message += " (" + t["times"].format(
+                    n=item["count"], first=item.get("first", "")
+                ) + ")"
+            return f"🏠 {t['missed']}: {item['title']}", message, item.get("data") or {}
+        return f"🏠 {t['welcome']}", await self._briefing(items), {}
+
+    async def _push_items(
+        self, items: list[dict[str, Any]], title: str, message: str, data: dict[str, Any]
+    ) -> None:
+        await self._push(title, message, data)
+        if len(items) > 1 and self.options.get(CONF_IMAGES_SEPARATE, True):
+            for item in items:
+                item_data = item.get("data") or {}
+                if item_data.get("image"):
+                    await self._push(
+                        f"🏠 {self.texts['missed']}: {item['title']}",
+                        item["message"],
+                        item_data,
+                    )
+
+    async def _async_push_on_arrival(self) -> None:
+        """Push the briefing right away; the announcement waits for motion."""
+        async with self._deliver_lock:
+            items = list(self.pending)
+            if not items or not self.waiting:
+                return
+            title, message, data = await self._compose(items)
+            await self._push_items(items, title, message, data)
+            self._prepared = (items, title, message)
+
     async def async_deliver(self, speakers: list[str] | None = None) -> None:
         """Deliver all pending messages as one briefing (ignores quiet hours)."""
         async with self._deliver_lock:
             if not self.pending:
                 return
             items = self.pending
+            prepared = self._prepared if self._prepared and self._prepared[0] == items else None
             # clear first so nothing new is lost or delivered twice
             self.pending = []
             self._stop_waiting()
@@ -376,36 +420,17 @@ class PresenceNotifyManager:
 
             if speakers is None:
                 speakers = self.speakers_in_earshot()
-            t = self.texts
 
-            if len(items) == 1:
-                item = items[0]
-                message = item["message"]
-                if int(item.get("count", 1)) > 1:
-                    message += " (" + t["times"].format(
-                        n=item["count"], first=item.get("first", "")
-                    ) + ")"
-                title = f"🏠 {t['missed']}: {item['title']}"
+            if prepared:
+                # push already went out on arrival
+                _, title, message = prepared
+                await self._announce_to(speakers, f"{title}: {message}", True)
+            else:
+                title, message, data = await self._compose(items)
                 await asyncio.gather(
-                    self._push(title, message, item.get("data") or {}),
+                    self._push_items(items, title, message, data),
                     self._announce_to(speakers, f"{title}: {message}", True),
                 )
-            else:
-                briefing = await self._briefing(items)
-                title = f"🏠 {t['welcome']}"
-                await asyncio.gather(
-                    self._push(title, briefing, {}),
-                    self._announce_to(speakers, f"{title}: {briefing}", True),
-                )
-                if self.options.get(CONF_IMAGES_SEPARATE, True):
-                    for item in items:
-                        data = item.get("data") or {}
-                        if data.get("image"):
-                            await self._push(
-                                f"🏠 {t['missed']}: {item['title']}",
-                                item["message"],
-                                data,
-                            )
 
             self.last_delivery = dt_util.utcnow()
             await self._async_save()
@@ -445,7 +470,7 @@ class PresenceNotifyManager:
                         "ai_task",
                         "generate_data",
                         {
-                            "task_name": "Presence Notify briefing",
+                            "task_name": "Domestic Intelligence Service briefing",
                             "entity_id": ai_entity,
                             "instructions": instructions,
                         },

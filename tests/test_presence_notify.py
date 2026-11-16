@@ -111,7 +111,7 @@ async def test_store_and_count_when_nobody_home(hass: HomeAssistant) -> None:
     assert len(pending) == 2
     assert pending[0]["title"] == "Post" and pending[0]["count"] == 3
     assert calls["push"] == [] and calls["tts"] == []
-    state = hass.states.get("sensor.presence_notify_stored_notifications")
+    state = hass.states.get("sensor.domestic_intelligence_service_stored_notifications")
     assert state is not None and state.state == "2"
 
 
@@ -136,7 +136,7 @@ async def test_send_fallback_all_speakers(hass: HomeAssistant) -> None:
     assert entry.runtime_data.speakers_in_earshot(["media_player.studio"]) == ["media_player.studio"]
 
 
-async def test_arrival_waits_for_motion_then_briefing(hass: HomeAssistant) -> None:
+async def test_arrival_push_now_announce_on_motion(hass: HomeAssistant) -> None:
     calls = _register_services(hass, ai_text="Waschmaschine fertig, dreimal Post.")
     entry = await _setup(hass, home=False)
     for msg in ("a", "b"):
@@ -144,17 +144,33 @@ async def test_arrival_waits_for_motion_then_briefing(hass: HomeAssistant) -> No
 
     hass.states.async_set("person.dennis", "home")
     await hass.async_block_till_done()
-    assert hass.states.get("binary_sensor.presence_notify_waiting_for_return").state == "on"
-    assert calls["push"] == []
+    assert hass.states.get("binary_sensor.domestic_intelligence_service_waiting_for_return").state == "on"
+    # push right away (only Dennis is home), no announcement yet
+    assert len(calls["push"]) == 1
+    assert calls["push"][0].data["message"] == "Waschmaschine fertig, dreimal Post."
+    assert calls["tts"] == []
 
     hass.states.async_set("binary_sensor.kueche", "on")
     await hass.async_block_till_done()
-    assert len(calls["ai"]) == 1
-    assert len(calls["push"]) == 1  # only Dennis is home
-    assert calls["push"][0].data["message"] == "Waschmaschine fertig, dreimal Post."
+    assert len(calls["ai"]) == 1  # briefing generated once, reused
+    assert len(calls["push"]) == 1  # no second push
     assert calls["tts"][0].data["media_player_entity_id"] == ["media_player.kueche"]
+    assert "Waschmaschine fertig" in calls["tts"][0].data["message"]
     assert entry.runtime_data.pending == []
-    assert hass.states.get("binary_sensor.presence_notify_waiting_for_return").state == "off"
+    assert hass.states.get("binary_sensor.domestic_intelligence_service_waiting_for_return").state == "off"
+
+
+async def test_arrival_push_waits_when_option_off(hass: HomeAssistant) -> None:
+    calls = _register_services(hass)
+    await _setup(hass, home=False, push_on_arrival=False)
+    await hass.services.async_call(DOMAIN, "send", {"title": "X", "message": "a"}, blocking=True)
+    hass.states.async_set("person.dennis", "home")
+    await hass.async_block_till_done()
+    assert calls["push"] == []
+    hass.states.async_set("binary_sensor.wz", "on")
+    await hass.async_block_till_done()
+    assert len(calls["push"]) == 1
+    assert calls["tts"][0].data["media_player_entity_id"] == ["media_player.studio"]
 
 
 async def test_leaving_again_keeps_messages(hass: HomeAssistant) -> None:
@@ -167,7 +183,7 @@ async def test_leaving_again_keeps_messages(hass: HomeAssistant) -> None:
     await hass.async_block_till_done()
     hass.states.async_set("binary_sensor.wz", "on")
     await hass.async_block_till_done()
-    assert calls["push"] == []
+    assert calls["tts"] == []
     assert len(entry.runtime_data.pending) == 1
 
 

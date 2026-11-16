@@ -1,4 +1,4 @@
-"""Base entity for Presence Notify."""
+"""Base entity for Domestic Intelligence Service."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ class PresenceNotifyEntity(Entity):
         self._attr_translation_key = key
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
-            name="Presence Notify",
+            translation_key="service",
             manufacturer="deladus",
             entry_type=DeviceEntryType.SERVICE,
         )

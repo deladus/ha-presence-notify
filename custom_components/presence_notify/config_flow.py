@@ -1,4 +1,4 @@
-"""Config and options flow for Presence Notify."""
+"""Config and options flow for Domestic Intelligence Service."""
 
 from __future__ import annotations
 
@@ -24,6 +24,7 @@ from .const import (
     CONF_PERSON,
     CONF_PERSONS,
     CONF_PRESENCE,
+    CONF_PUSH_ON_ARRIVAL,
     CONF_QUIET_END,
     CONF_QUIET_START,
     CONF_RETURN_ROOM,
@@ -75,6 +76,7 @@ def _general_schema(full: bool) -> vol.Schema:
                 vol.Required(CONF_MAX_PENDING, default=DEFAULT_MAX_PENDING): selector.NumberSelector(
                     selector.NumberSelectorConfig(min=1, max=100, mode=selector.NumberSelectorMode.BOX)
                 ),
+                vol.Required(CONF_PUSH_ON_ARRIVAL, default=True): selector.BooleanSelector(),
                 vol.Required(CONF_HIGH_PRIORITY, default=True): selector.BooleanSelector(),
                 vol.Required(CONF_IMAGES_SEPARATE, default=True): selector.BooleanSelector(),
             }
@@ -186,7 +188,12 @@ class PresenceNotifyConfigFlow(_PersonsMixin, ConfigFlow, domain=DOMAIN):
             self._opts[CONF_ROOMS].append(_clean_room(user_input))
             if user_input.get(CONF_ADD_ANOTHER):
                 return self.async_show_form(step_id="room", data_schema=_room_schema(True))
-            return self.async_create_entry(title="Presence Notify", data={}, options=self._opts)
+            title = (
+                "Heimischer Nachrichtendienst"
+                if (self.hass.config.language or "").startswith("de")
+                else "Domestic Intelligence Service"
+            )
+            return self.async_create_entry(title=title, data={}, options=self._opts)
         return self.async_show_form(step_id="room", data_schema=_room_schema(True))
 
     @staticmethod

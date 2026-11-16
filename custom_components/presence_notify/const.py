@@ -1,4 +1,4 @@
-"""Constants for Presence Notify."""
+"""Constants for Domestic Intelligence Service."""
 
 from __future__ import annotations
 
@@ -24,6 +24,7 @@ CONF_TTS_ENTITY = "tts_entity"
 CONF_MAX_PENDING = "max_pending"
 CONF_HIGH_PRIORITY = "high_priority_push"
 CONF_IMAGES_SEPARATE = "push_images_separately"
+CONF_PUSH_ON_ARRIVAL = "push_on_arrival"
 
 DEFAULT_QUIET_START = "22:30:00"
 DEFAULT_QUIET_END = "08:00:00"

@@ -1,11 +1,12 @@
 {
+  "title": "Domestic Intelligence Service",
   "config": {
     "abort": {
-      "single_instance_allowed": "Presence Notify is already configured."
+      "single_instance_allowed": "Domestic Intelligence Service is already configured."
     },
     "step": {
       "user": {
-        "title": "Presence Notify",
+        "title": "Domestic Intelligence Service",
         "description": "General settings. Announcements are not played during quiet hours (except the briefing after coming home).",
         "data": {
           "quiet_start": "Quiet hours start",
@@ -21,12 +22,16 @@
       "persons": {
         "title": "Persons",
         "description": "Who should receive push notifications when at home?",
-        "data": { "persons": "Persons" }
+        "data": {
+          "persons": "Persons"
+        }
       },
       "person_notify": {
         "title": "Push for {person}",
         "description": "Which notify service reaches {person}? Tip: a notify group covering all of their devices.",
-        "data": { "notify": "Notify service" }
+        "data": {
+          "notify": "Notify service"
+        }
       },
       "room": {
         "title": "Room",
@@ -47,7 +52,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Presence Notify",
+        "title": "Domestic Intelligence Service",
         "menu_options": {
           "general": "General settings",
           "persons": "Persons and push services",
@@ -65,17 +70,25 @@
           "tts_entity": "TTS engine for non-Alexa speakers (optional)",
           "max_pending": "Maximum stored notifications",
           "high_priority_push": "Send push notifications with high priority",
-          "push_images_separately": "Push stored notifications with an image separately"
+          "push_images_separately": "Push stored notifications with an image separately",
+          "push_on_arrival": "Push the briefing right away when someone comes home"
+        },
+        "data_description": {
+          "push_on_arrival": "Without this, the push waits for motion in a return room, together with the announcement."
         }
       },
       "persons": {
         "title": "Persons",
-        "data": { "persons": "Persons" }
+        "data": {
+          "persons": "Persons"
+        }
       },
       "person_notify": {
         "title": "Push for {person}",
         "description": "Which notify service reaches {person}?",
-        "data": { "notify": "Notify service" }
+        "data": {
+          "notify": "Notify service"
+        }
       },
       "add_room": {
         "title": "Add room",
@@ -88,7 +101,9 @@
       },
       "edit_room": {
         "title": "Edit room",
-        "data": { "room": "Room" }
+        "data": {
+          "room": "Room"
+        }
       },
       "edit_room_details": {
         "title": "Edit room",
@@ -101,48 +116,85 @@
       },
       "remove_room": {
         "title": "Remove rooms",
-        "data": { "room": "Rooms" }
+        "data": {
+          "room": "Rooms"
+        }
       }
     }
   },
   "entity": {
     "sensor": {
-      "pending": { "name": "Stored notifications" },
-      "last_delivery": { "name": "Last delivery" }
+      "pending": {
+        "name": "Stored notifications"
+      },
+      "last_delivery": {
+        "name": "Last delivery"
+      }
     },
     "binary_sensor": {
-      "waiting": { "name": "Waiting for return" }
+      "waiting": {
+        "name": "Waiting for return"
+      }
     },
     "button": {
-      "deliver": { "name": "Deliver now" },
-      "clear": { "name": "Clear stored notifications" }
+      "deliver": {
+        "name": "Deliver now"
+      },
+      "clear": {
+        "name": "Clear stored notifications"
+      }
     }
   },
   "exceptions": {
-    "not_loaded": { "message": "Presence Notify is not set up." }
+    "not_loaded": {
+      "message": "Domestic Intelligence Service is not set up."
+    }
   },
   "services": {
     "send": {
       "name": "Send",
       "description": "Push to everyone at home and announce on speakers in earshot. If nobody is home, the notification is stored.",
       "fields": {
-        "title": { "name": "Title", "description": "Title of the notification." },
-        "message": { "name": "Message", "description": "Text of the notification." },
-        "data": { "name": "Data", "description": "Extra push data, e.g. image or actions." },
-        "speakers": { "name": "Speakers", "description": "Only use these speakers (default: all configured)." },
-        "ignore_quiet_hours": { "name": "Ignore quiet hours", "description": "Announce even during quiet hours." }
+        "title": {
+          "name": "Title",
+          "description": "Title of the notification."
+        },
+        "message": {
+          "name": "Message",
+          "description": "Text of the notification."
+        },
+        "data": {
+          "name": "Data",
+          "description": "Extra push data, e.g. image or actions."
+        },
+        "speakers": {
+          "name": "Speakers",
+          "description": "Only use these speakers (default: all configured)."
+        },
+        "ignore_quiet_hours": {
+          "name": "Ignore quiet hours",
+          "description": "Announce even during quiet hours."
+        }
       }
     },
     "deliver_pending": {
       "name": "Deliver stored notifications",
       "description": "Deliver all stored notifications now as one briefing.",
       "fields": {
-        "speakers": { "name": "Speakers", "description": "Announce on these speakers (default: speakers in earshot)." }
+        "speakers": {
+          "name": "Speakers",
+          "description": "Announce on these speakers (default: speakers in earshot)."
+        }
       }
     },
     "clear_pending": {
       "name": "Clear stored notifications",
       "description": "Delete all stored notifications without delivering them."
+    }
+  },
+  "device": {
+    "service": {
+      "name": "Domestic Intelligence Service"
     }
   }
 }

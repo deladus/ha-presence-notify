@@ -1,4 +1,4 @@
-"""Presence Notify: notifications that reach whoever is home and in earshot."""
+"""Domestic Intelligence Service: notifications that reach whoever is home and in earshot."""
 
 from __future__ import annotations
 

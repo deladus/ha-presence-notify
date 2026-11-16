@@ -1,4 +1,4 @@
-"""Sensors for Presence Notify."""
+"""Sensors for Domestic Intelligence Service."""
 
 from __future__ import annotations
 

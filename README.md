@@ -1,4 +1,6 @@
-# Presence Notify
+# Domestic Intelligence Service
+
+*Heimischer Nachrichtendienst* · domain `presence_notify`
 
 Notifications for Home Assistant that reach whoever is **at home and in earshot**, and don't get lost when nobody is home.
 
@@ -10,7 +12,8 @@ One action, `presence_notify.send`, replaces your notification scripts:
 
 - **Someone is home:** push to every person who is home, and announce on the speakers of rooms where someone is detected. Rooms without sensors always get announcements. If nobody is detected anywhere, all speakers are used. No announcements during quiet hours.
 - **Nobody is home:** the notification is **stored** (it survives restarts). Identical notifications are merged and counted ("3 times, first at 09:10").
-- **Coming home:** Presence Notify waits until motion is detected in a **return room** (e.g. living room or kitchen) rather than using a fixed delay. Then everything is delivered there **as one briefing**, even during quiet hours. With an AI task entity (e.g. Google Gemini), several notifications are summarized into a natural announcement. Without one, a short list is read out.
+- **Coming home:** The service waits until motion is detected in a **return room** (e.g. living room or kitchen) rather than using a fixed delay. Then the briefing is announced there, **as one briefing**, even during quiet hours. With an AI task entity (e.g. Google Gemini), several notifications are summarized into a natural announcement. Without one, a short list is read out.
+- The push with the briefing goes out **immediately on arrival** (optional: wait for motion instead).
 - If everybody leaves again before reaching a return room, notifications stay stored.
 
 Speakers: Alexa Media Player devices are announced directly via `notify.alexa_media` (announce). Any other `media_player` is announced via `tts.speak` with a TTS engine you choose.
@@ -18,8 +21,8 @@ Speakers: Alexa Media Player devices are announced directly via `notify.alexa_me
 ## Installation (HACS)
 
 1. HACS → ⋮ → *Custom repositories* → add `https://github.com/deladus/ha-presence-notify` as type *Integration*.
-2. Install **Presence Notify** and restart Home Assistant.
-3. *Settings → Devices & services → Add integration → Presence Notify*.
+2. Install **Domestic Intelligence Service** and restart Home Assistant.
+3. *Settings → Devices & services → Add integration → Domestic Intelligence Service*.
 
 ## Setup
 
@@ -46,9 +49,10 @@ data:
 
 ## Entities
 
-- `sensor.presence_notify_stored_notifications`: number of stored notifications (attribute `items`)
-- `sensor.presence_notify_last_delivery`
-- `binary_sensor.presence_notify_waiting_for_return`
+- Entity IDs follow your language (e.g. `sensor.heimischer_nachrichtendienst_…` in German)
+- `sensor.domestic_intelligence_service_stored_notifications`: number of stored notifications (attribute `items`)
+- `sensor.domestic_intelligence_service_last_delivery`
+- `binary_sensor.domestic_intelligence_service_waiting_for_return`
 - Buttons: *Deliver now*, *Clear stored notifications*
 - Event `presence_notify_delivered` (`count`, `speakers`) after each delivery
 
@@ -61,7 +65,7 @@ data:
 
 ## Deutsch
 
-Presence Notify schickt Benachrichtigungen an alle, die zu Hause sind (Push), und sagt sie auf den Lautsprechern in Hörweite an. Ist niemand da, werden sie gespeichert. Gleiche Meldungen werden dabei gezählt statt doppelt abgelegt. Nach der Heimkehr wartet die Integration auf die erste Bewegung in einem Heimkehr-Raum und spielt dort **ein** Briefing ab, auf Wunsch per KI zusammengefasst und auch während der Ruhezeit. Einrichtung komplett über die Oberfläche, Oberfläche auf Deutsch und Englisch.
+Der Heimische Nachrichtendienst schickt Benachrichtigungen an alle, die zu Hause sind (Push), und sagt sie auf den Lautsprechern in Hörweite an. Ist niemand da, werden sie gespeichert. Gleiche Meldungen werden dabei gezählt statt doppelt abgelegt. Nach der Heimkehr wartet die Integration auf die erste Bewegung in einem Heimkehr-Raum und spielt dort **ein** Briefing ab (der Push kommt schon bei der Ankunft), auf Wunsch per KI zusammengefasst und auch während der Ruhezeit. Einrichtung komplett über die Oberfläche, Oberfläche auf Deutsch und Englisch.
 
 ## License
 
