@@ -23,11 +23,16 @@ One action, `presence_notify.send`, replaces your notification scripts:
 
 Speakers: Alexa Media Player devices are announced directly via `notify.alexa_media` (announce). Any other `media_player` is announced via `tts.speak` with a TTS engine you choose.
 
-## Installation (HACS)
+## Installation
 
-1. HACS → ⋮ → *Custom repositories* → add `https://github.com/deladus/ha-presence-notify` as type *Integration*.
-2. Install **Domestic Intelligence Service** and restart Home Assistant.
-3. *Settings → Devices & services → Add integration → Domestic Intelligence Service*.
+**Home Assistant 2026.11 or newer (Marketplace):**
+
+1. *Settings → Marketplace* → **Add from link** (top right).
+2. Enter `deladus/ha-presence-notify`.
+3. Install **Domestic Intelligence Service**. While there is only a beta, enable pre-releases for it. Then restart Home Assistant.
+4. *Settings → Devices & services → Add integration → Domestic Intelligence Service*.
+
+**Older versions:** add the repository as a custom repository (type *Integration*) in HACS, install and restart.
 
 ## Setup
 
