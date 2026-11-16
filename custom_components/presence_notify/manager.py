@@ -28,6 +28,8 @@ from homeassistant.util import dt as dt_util
 from .const import (
     CONF_AI_TASK,
     CONF_HIGH_PRIORITY,
+    CONF_HOME_ENTITY,
+    CONF_HOME_STATES,
     CONF_IMAGES_SEPARATE,
     CONF_MAX_PENDING,
     CONF_NOTIFY,
@@ -158,6 +160,8 @@ class PresenceNotifyManager:
 
         self._someone_home = self.someone_home()
         person_ids = [p[CONF_PERSON] for p in self.persons]
+        if home_entity := self.options.get(CONF_HOME_ENTITY):
+            person_ids.append(home_entity)
         if person_ids:
             self._unsubs.append(
                 async_track_state_change_event(
@@ -189,6 +193,12 @@ class PresenceNotifyManager:
     # ---------------------------------------------------------------- presence
 
     def someone_home(self) -> bool:
+        """Home source entity (e.g. a house mode) if set, otherwise the persons."""
+        home_entity = self.options.get(CONF_HOME_ENTITY)
+        if home_entity:
+            state = self.hass.states.get(home_entity)
+            home_states = self.options.get(CONF_HOME_STATES) or list(PERSON_HOME_STATES)
+            return state is not None and state.state in home_states
         return any(
             (state := self.hass.states.get(p[CONF_PERSON])) is not None
             and state.state in PERSON_HOME_STATES
@@ -196,12 +206,16 @@ class PresenceNotifyManager:
         )
 
     def persons_home(self) -> list[dict[str, str]]:
-        return [
+        home = [
             p
             for p in self.persons
             if (state := self.hass.states.get(p[CONF_PERSON])) is not None
             and state.state in PERSON_HOME_STATES
         ]
+        if not home and self.options.get(CONF_HOME_ENTITY) and self.someone_home():
+            # house mode says "home" but no person is tracked as home: push to all
+            return list(self.persons)
+        return home
 
     def _room_occupied(self, room: dict[str, Any]) -> bool | None:
         """True/False if the room has presence entities, None if it has none."""

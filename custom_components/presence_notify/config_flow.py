@@ -18,6 +18,8 @@ from homeassistant.helpers import selector
 from .const import (
     CONF_AI_TASK,
     CONF_HIGH_PRIORITY,
+    CONF_HOME_ENTITY,
+    CONF_HOME_STATES,
     CONF_IMAGES_SEPARATE,
     CONF_MAX_PENDING,
     CONF_NOTIFY,
@@ -36,6 +38,7 @@ from .const import (
     DEFAULT_QUIET_END,
     DEFAULT_QUIET_START,
     DOMAIN,
+    HOME_ENTITY_DOMAINS,
     PERSON_DOMAINS,
 )
 
@@ -64,6 +67,9 @@ def _general_schema(full: bool) -> vol.Schema:
     fields: dict[Any, Any] = {
         vol.Required(CONF_QUIET_START, default=DEFAULT_QUIET_START): selector.TimeSelector(),
         vol.Required(CONF_QUIET_END, default=DEFAULT_QUIET_END): selector.TimeSelector(),
+        vol.Optional(CONF_HOME_ENTITY): selector.EntitySelector(
+            selector.EntitySelectorConfig(domain=HOME_ENTITY_DOMAINS)
+        ),
         vol.Optional(CONF_AI_TASK): selector.EntitySelector(
             selector.EntitySelectorConfig(domain="ai_task")
         ),
@@ -108,6 +114,27 @@ def _room_schema(with_add_another: bool) -> vol.Schema:
     if with_add_another:
         fields[vol.Required(CONF_ADD_ANOTHER, default=False)] = selector.BooleanSelector()
     return vol.Schema(fields)
+
+
+def _home_states_schema(hass: HomeAssistant, entity_id: str, current: list[str]) -> vol.Schema:
+    state = hass.states.get(entity_id)
+    options = list((state.attributes.get("options") if state else None) or [])
+    if not options:
+        options = ["on", "home"]
+    for value in current:
+        if value not in options:
+            options.append(value)
+    default = current or [o for o in options if o in ("on", "home")]
+    return vol.Schema(
+        {
+            vol.Required(CONF_HOME_STATES, default=default): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=options, multiple=True, custom_value=True,
+                    mode=selector.SelectSelectorMode.LIST,
+                )
+            )
+        }
+    )
 
 
 def _clean_room(user_input: dict[str, Any]) -> dict[str, Any]:
@@ -166,8 +193,20 @@ class PresenceNotifyConfigFlow(_PersonsMixin, ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             self._opts.update(user_input)
+            if user_input.get(CONF_HOME_ENTITY):
+                return await self.async_step_home_states()
             return await self.async_step_persons()
         return self.async_show_form(step_id="user", data_schema=_general_schema(False))
+
+    async def async_step_home_states(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            self._opts[CONF_HOME_STATES] = user_input[CONF_HOME_STATES]
+            return await self.async_step_persons()
+        return self.async_show_form(
+            step_id="home_states",
+            data_schema=_home_states_schema(self.hass, self._opts[CONF_HOME_ENTITY], []),
+            description_placeholders={"entity": self._opts[CONF_HOME_ENTITY]},
+        )
 
     async def async_step_persons(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
@@ -231,13 +270,28 @@ class PresenceNotifyOptionsFlow(_PersonsMixin, OptionsFlow):
 
     async def async_step_general(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
-            for key in (CONF_AI_TASK, CONF_TTS_ENTITY):
+            for key in (CONF_AI_TASK, CONF_TTS_ENTITY, CONF_HOME_ENTITY):
                 self._opts.pop(key, None)
             user_input[CONF_MAX_PENDING] = int(user_input[CONF_MAX_PENDING])
             self._opts.update(user_input)
+            if user_input.get(CONF_HOME_ENTITY):
+                return await self.async_step_home_states()
+            self._opts.pop(CONF_HOME_STATES, None)
             return self._save()
         schema = self.add_suggested_values_to_schema(_general_schema(True), self._opts)
         return self.async_show_form(step_id="general", data_schema=schema)
+
+    async def async_step_home_states(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            self._opts[CONF_HOME_STATES] = user_input[CONF_HOME_STATES]
+            return self._save()
+        return self.async_show_form(
+            step_id="home_states",
+            data_schema=_home_states_schema(
+                self.hass, self._opts[CONF_HOME_ENTITY], self._opts.get(CONF_HOME_STATES, [])
+            ),
+            description_placeholders={"entity": self._opts[CONF_HOME_ENTITY]},
+        )
 
     async def async_step_persons(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:

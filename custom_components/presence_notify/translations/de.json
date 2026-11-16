@@ -12,11 +12,13 @@
           "quiet_start": "Ruhezeit Beginn",
           "quiet_end": "Ruhezeit Ende",
           "ai_task_entity": "KI-Aufgabe für das Briefing (optional)",
-          "tts_entity": "TTS-Dienst für Nicht-Alexa-Lautsprecher (optional)"
+          "tts_entity": "TTS-Dienst für Nicht-Alexa-Lautsprecher (optional)",
+          "home_entity": "Anwesenheitsquelle (optional)"
         },
         "data_description": {
           "ai_task_entity": "Fasst mehrere verpasste Nachrichten zu einer Ansage zusammen. Ohne KI wird eine einfache Liste vorgelesen.",
-          "tts_entity": "Alexa-Media-Lautsprecher werden direkt angesprochen, andere Lautsprecher brauchen einen TTS-Dienst."
+          "tts_entity": "Alexa-Media-Lautsprecher werden direkt angesprochen, andere Lautsprecher brauchen einen TTS-Dienst.",
+          "home_entity": "Z. B. ein Hausmodus (Auswahlliste) oder ein Ist-jemand-zuhause-Sensor. Wenn gesetzt, entscheidet sie, ob jemand zu Hause ist; die Personen legen dann nur fest, wer Push bekommt."
         }
       },
       "persons": {
@@ -49,6 +51,13 @@
         "data_description": {
           "return_room": "Nach der Heimkehr werden verpasste Nachrichten zugestellt, sobald in einem Heimkehr-Raum Bewegung erkannt wird – auf dem Lautsprecher dieses Raums."
         }
+      },
+      "home_states": {
+        "title": "Zustände für „zu Hause“",
+        "description": "Welche Zustände von {entity} bedeuten, dass jemand zu Hause ist?",
+        "data": {
+          "home_states": "Zustände für „zu Hause“"
+        }
       }
     }
   },
@@ -74,10 +83,12 @@
           "max_pending": "Maximal gespeicherte Nachrichten",
           "high_priority_push": "Push mit hoher Priorität senden",
           "push_images_separately": "Gespeicherte Nachrichten mit Bild zusätzlich einzeln pushen",
-          "push_on_arrival": "Briefing-Push sofort bei der Heimkehr"
+          "push_on_arrival": "Briefing-Push sofort bei der Heimkehr",
+          "home_entity": "Anwesenheitsquelle (optional)"
         },
         "data_description": {
-          "push_on_arrival": "Sonst kommt der Push erst bei Bewegung im Heimkehr-Raum, zusammen mit der Ansage."
+          "push_on_arrival": "Sonst kommt der Push erst bei Bewegung im Heimkehr-Raum, zusammen mit der Ansage.",
+          "home_entity": "Z. B. ein Hausmodus (Auswahlliste) oder ein Ist-jemand-zuhause-Sensor. Wenn gesetzt, entscheidet sie, ob jemand zu Hause ist; die Personen legen dann nur fest, wer Push bekommt."
         }
       },
       "persons": {
@@ -124,6 +135,13 @@
         "title": "Räume entfernen",
         "data": {
           "room": "Räume"
+        }
+      },
+      "home_states": {
+        "title": "Zustände für „zu Hause“",
+        "description": "Welche Zustände von {entity} bedeuten, dass jemand zu Hause ist?",
+        "data": {
+          "home_states": "Zustände für „zu Hause“"
         }
       }
     }

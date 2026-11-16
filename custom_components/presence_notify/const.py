@@ -25,6 +25,9 @@ CONF_MAX_PENDING = "max_pending"
 CONF_HIGH_PRIORITY = "high_priority_push"
 CONF_IMAGES_SEPARATE = "push_images_separately"
 CONF_PUSH_ON_ARRIVAL = "push_on_arrival"
+CONF_HOME_ENTITY = "home_entity"
+CONF_HOME_STATES = "home_states"
+HOME_ENTITY_DOMAINS = ["input_select", "select", "input_boolean", "binary_sensor", "sensor", "alarm_control_panel", "group"]
 
 DEFAULT_QUIET_START = "22:30:00"
 DEFAULT_QUIET_END = "08:00:00"

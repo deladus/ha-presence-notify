@@ -226,3 +226,50 @@ async def test_input_boolean_as_person(hass: HomeAssistant) -> None:
     hass.states.async_set("binary_sensor.wz", "on")
     await hass.async_block_till_done()
     assert calls["tts"][0].data["media_player_entity_id"] == ["media_player.studio"]
+
+
+async def test_config_flow_with_house_mode(hass: HomeAssistant) -> None:
+    hass.states.async_set("input_select.hausmodus", "Zuhause",
+                          {"options": ["Zuhause", "Abwesend", "Urlaub"]})
+    hass.states.async_set("person.dennis", "home")
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {
+        "quiet_start": "22:30:00", "quiet_end": "08:00:00", "home_entity": "input_select.hausmodus"})
+    assert result["step_id"] == "home_states"
+    schema_field = result["data_schema"].schema["home_states"]
+    assert schema_field.config["options"] == ["Zuhause", "Abwesend", "Urlaub"]
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"home_states": ["Zuhause"]})
+    assert result["step_id"] == "persons"
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"persons": ["person.dennis"]})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"notify": "notify.x"})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {
+        "name": "WZ", "presence": [], "return_room": False, "add_another": False})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["result"].options["home_states"] == ["Zuhause"]
+
+
+async def test_house_mode_controls_storing_and_arrival(hass: HomeAssistant) -> None:
+    calls = _register_services(hass, ai_text="Briefing")
+    hass.states.async_set("input_select.hausmodus", "Abwesend")
+    # persons are NOT tracked as home (e.g. no phone tracking)
+    entry = await _setup(hass, home=False, home_entity="input_select.hausmodus",
+                         home_states=["Zuhause"])
+    await hass.services.async_call(DOMAIN, "send", {"title": "X", "message": "a"}, blocking=True)
+    hass.states.async_set("input_select.hausmodus", "Urlaub")
+    await hass.async_block_till_done()
+    await hass.services.async_call(DOMAIN, "send", {"title": "X", "message": "b"}, blocking=True)
+    assert len(entry.runtime_data.pending) == 2 and calls["push"] == []
+
+    hass.states.async_set("input_select.hausmodus", "Zuhause")
+    await hass.async_block_till_done()
+    # no person tracked as home -> push goes to all configured persons
+    assert len(calls["push"]) == 2
+    hass.states.async_set("binary_sensor.wz", "on")
+    await hass.async_block_till_done()
+    assert calls["tts"][0].data["media_player_entity_id"] == ["media_player.studio"]
+    assert entry.runtime_data.pending == []
+
+    # while mode is Zuhause, sends go out immediately (only to tracked persons if any)
+    hass.states.async_set("person.dennis", "home")
+    await hass.services.async_call(DOMAIN, "send", {"title": "Y", "message": "c", "ignore_quiet_hours": True}, blocking=True)
+    assert len(calls["push"]) == 3

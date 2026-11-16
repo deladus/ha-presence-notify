@@ -31,7 +31,8 @@ Speakers: Alexa Media Player devices are announced directly via `notify.alexa_me
 
 ## Setup
 
-1. **General:** quiet hours, optional AI task entity, optional TTS engine.
+1. **General:** quiet hours, optional **home source**, optional AI task entity, optional TTS engine.
+   The home source can be a house mode select (e.g. `Home / Away / Vacation`), an "anyone home" sensor or an alarm panel. You pick which states mean "home". If set, it decides whether notifications are stored. The persons then only define who gets push notifications (if none of them is tracked as home, all of them get it).
 2. **Persons:** pick persons, then the notify service for each of them (tip: a notify group with all of a person's devices).
 3. **Rooms:** name, speaker, presence entities, and whether it is a return room. Presence entities can be any `binary_sensor`, `light`, `switch`, `media_player`, `input_boolean` or `device_tracker`. `on`, `home` or `playing` counts as someone being there, so a TV or a hobby room light can count too.
 
