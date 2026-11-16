@@ -39,7 +39,8 @@ Die Integration nutzt das verbreitete Projekt **Alexa Actionable Notifications**
 3. Das Skript `script.activate_alexa_actionable_notification` anlegen.
 4. Prüfen: Das Skript ausführen – Alexa stellt die Frage, und bei einer Antwort erscheint das Ereignis `alexa_actionable_notification` in den Entwicklerwerkzeugen.
 
-Projekt und Anleitung: <https://github.com/keatontaylor/alexa-actions>
+- Projekt: <https://github.com/keatontaylor/alexa-actions>
+- **Schritt-für-Schritt-Anleitung (Wiki):** <https://github.com/keatontaylor/alexa-actions/wiki> – die Seiten der Reihe nach durchgehen: *Prerequisites → Initial Configuration → Alexa Talking to Home Assistant (The Skill) → Home Assistant Talking to Alexa (The Script) → Hello World*. Erst wenn „Hello World“ funktioniert, den Schalter im Heimischen Nachrichtendienst einschalten.
 
 ### Anforderungen an das Skript
 
@@ -62,4 +63,4 @@ Ein eigenes Skript (z. B. ein Wrapper) funktioniert ebenso, solange es diese Var
 
 ## English summary
 
-`presence_notify.ask` asks a yes/no question by push (with buttons) to everyone at home – or to the first configured person (with a "Pass on" button) if nobody is home – and, when the switch is on, by Alexa in the room where someone is detected. The first answer wins; the response contains `answer` (`yes`/`no`/`timeout`) and `by`. The Alexa part requires the [Alexa Actionable Notifications](https://github.com/keatontaylor/alexa-actions) skill, the helper `input_text.alexa_actionable_notification` and a script that accepts `text`, `event_id`, `alexa_device` and `suppress_confirmation`. Recommended for experts only.
+`presence_notify.ask` asks a yes/no question by push (with buttons) to everyone at home – or to the first configured person (with a "Pass on" button) if nobody is home – and, when the switch is on, by Alexa in the room where someone is detected. The first answer wins; the response contains `answer` (`yes`/`no`/`timeout`) and `by`. The Alexa part requires the [Alexa Actionable Notifications](https://github.com/keatontaylor/alexa-actions) skill (step-by-step guide in its [wiki](https://github.com/keatontaylor/alexa-actions/wiki) – finish its "Hello World" first), the helper `input_text.alexa_actionable_notification` and a script that accepts `text`, `event_id`, `alexa_device` and `suppress_confirmation`. Recommended for experts only.
