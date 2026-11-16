@@ -1,0 +1,148 @@
+{
+  "config": {
+    "abort": {
+      "single_instance_allowed": "Presence Notify is already configured."
+    },
+    "step": {
+      "user": {
+        "title": "Presence Notify",
+        "description": "General settings. Announcements are not played during quiet hours (except the briefing after coming home).",
+        "data": {
+          "quiet_start": "Quiet hours start",
+          "quiet_end": "Quiet hours end",
+          "ai_task_entity": "AI task for the briefing (optional)",
+          "tts_entity": "TTS engine for non-Alexa speakers (optional)"
+        },
+        "data_description": {
+          "ai_task_entity": "Summarizes several missed notifications into one announcement. Without it, a simple list is read out.",
+          "tts_entity": "Alexa Media speakers are announced directly; other speakers need a TTS engine."
+        }
+      },
+      "persons": {
+        "title": "Persons",
+        "description": "Who should receive push notifications when at home?",
+        "data": { "persons": "Persons" }
+      },
+      "person_notify": {
+        "title": "Push for {person}",
+        "description": "Which notify service reaches {person}? Tip: a notify group covering all of their devices.",
+        "data": { "notify": "Notify service" }
+      },
+      "room": {
+        "title": "Room",
+        "description": "Add a room with a speaker. Presence entities can be motion/occupancy sensors, but also lights, switches or media players: 'on', 'home' or 'playing' counts as someone being there. Rooms without presence entities always get announcements.",
+        "data": {
+          "name": "Room name",
+          "speaker": "Speaker",
+          "presence": "Presence entities",
+          "return_room": "Return room",
+          "add_another": "Add another room"
+        },
+        "data_description": {
+          "return_room": "After coming home, missed notifications are delivered as soon as motion is detected in one of the return rooms, on that room's speaker."
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Presence Notify",
+        "menu_options": {
+          "general": "General settings",
+          "persons": "Persons and push services",
+          "add_room": "Add room",
+          "edit_room": "Edit room",
+          "remove_room": "Remove rooms"
+        }
+      },
+      "general": {
+        "title": "General settings",
+        "data": {
+          "quiet_start": "Quiet hours start",
+          "quiet_end": "Quiet hours end",
+          "ai_task_entity": "AI task for the briefing (optional)",
+          "tts_entity": "TTS engine for non-Alexa speakers (optional)",
+          "max_pending": "Maximum stored notifications",
+          "high_priority_push": "Send push notifications with high priority",
+          "push_images_separately": "Push stored notifications with an image separately"
+        }
+      },
+      "persons": {
+        "title": "Persons",
+        "data": { "persons": "Persons" }
+      },
+      "person_notify": {
+        "title": "Push for {person}",
+        "description": "Which notify service reaches {person}?",
+        "data": { "notify": "Notify service" }
+      },
+      "add_room": {
+        "title": "Add room",
+        "data": {
+          "name": "Room name",
+          "speaker": "Speaker",
+          "presence": "Presence entities",
+          "return_room": "Return room"
+        }
+      },
+      "edit_room": {
+        "title": "Edit room",
+        "data": { "room": "Room" }
+      },
+      "edit_room_details": {
+        "title": "Edit room",
+        "data": {
+          "name": "Room name",
+          "speaker": "Speaker",
+          "presence": "Presence entities",
+          "return_room": "Return room"
+        }
+      },
+      "remove_room": {
+        "title": "Remove rooms",
+        "data": { "room": "Rooms" }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "pending": { "name": "Stored notifications" },
+      "last_delivery": { "name": "Last delivery" }
+    },
+    "binary_sensor": {
+      "waiting": { "name": "Waiting for return" }
+    },
+    "button": {
+      "deliver": { "name": "Deliver now" },
+      "clear": { "name": "Clear stored notifications" }
+    }
+  },
+  "exceptions": {
+    "not_loaded": { "message": "Presence Notify is not set up." }
+  },
+  "services": {
+    "send": {
+      "name": "Send",
+      "description": "Push to everyone at home and announce on speakers in earshot. If nobody is home, the notification is stored.",
+      "fields": {
+        "title": { "name": "Title", "description": "Title of the notification." },
+        "message": { "name": "Message", "description": "Text of the notification." },
+        "data": { "name": "Data", "description": "Extra push data, e.g. image or actions." },
+        "speakers": { "name": "Speakers", "description": "Only use these speakers (default: all configured)." },
+        "ignore_quiet_hours": { "name": "Ignore quiet hours", "description": "Announce even during quiet hours." }
+      }
+    },
+    "deliver_pending": {
+      "name": "Deliver stored notifications",
+      "description": "Deliver all stored notifications now as one briefing.",
+      "fields": {
+        "speakers": { "name": "Speakers", "description": "Announce on these speakers (default: speakers in earshot)." }
+      }
+    },
+    "clear_pending": {
+      "name": "Clear stored notifications",
+      "description": "Delete all stored notifications without delivering them."
+    }
+  }
+}

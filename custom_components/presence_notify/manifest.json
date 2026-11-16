@@ -1,0 +1,15 @@
+{
+  "domain": "presence_notify",
+  "name": "Presence Notify",
+  "after_dependencies": ["ai_task", "notify", "tts"],
+  "codeowners": ["@deladus"],
+  "config_flow": true,
+  "dependencies": ["person"],
+  "documentation": "https://github.com/deladus/ha-presence-notify",
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/deladus/ha-presence-notify/issues",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "0.1.0"
+}

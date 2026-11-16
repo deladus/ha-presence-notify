@@ -1,0 +1,40 @@
+send:
+  fields:
+    title:
+      required: true
+      example: "Washing machine"
+      selector:
+        text:
+    message:
+      required: true
+      example: "The laundry is done."
+      selector:
+        text:
+          multiline: true
+    data:
+      required: false
+      example: '{"image": "/api/camera_proxy/camera.front_door"}'
+      selector:
+        object:
+    speakers:
+      required: false
+      selector:
+        entity:
+          domain: media_player
+          multiple: true
+    ignore_quiet_hours:
+      required: false
+      default: false
+      selector:
+        boolean:
+
+deliver_pending:
+  fields:
+    speakers:
+      required: false
+      selector:
+        entity:
+          domain: media_player
+          multiple: true
+
+clear_pending:

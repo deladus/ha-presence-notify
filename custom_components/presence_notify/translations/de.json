@@ -1,0 +1,190 @@
+{
+  "config": {
+    "abort": {
+      "single_instance_allowed": "Presence Notify ist bereits eingerichtet."
+    },
+    "step": {
+      "user": {
+        "title": "Presence Notify",
+        "description": "Allgemeine Einstellungen. Während der Ruhezeit werden keine Ansagen abgespielt (außer dem Briefing nach der Heimkehr).",
+        "data": {
+          "quiet_start": "Ruhezeit Beginn",
+          "quiet_end": "Ruhezeit Ende",
+          "ai_task_entity": "KI-Aufgabe für das Briefing (optional)",
+          "tts_entity": "TTS-Dienst für Nicht-Alexa-Lautsprecher (optional)"
+        },
+        "data_description": {
+          "ai_task_entity": "Fasst mehrere verpasste Nachrichten zu einer Ansage zusammen. Ohne KI wird eine einfache Liste vorgelesen.",
+          "tts_entity": "Alexa-Media-Lautsprecher werden direkt angesprochen, andere Lautsprecher brauchen einen TTS-Dienst."
+        }
+      },
+      "persons": {
+        "title": "Personen",
+        "description": "Wer soll Push-Nachrichten bekommen, wenn er zu Hause ist?",
+        "data": {
+          "persons": "Personen"
+        }
+      },
+      "person_notify": {
+        "title": "Push für {person}",
+        "description": "Welcher Benachrichtigungsdienst erreicht {person}? Tipp: eine Notify-Gruppe mit allen Geräten.",
+        "data": {
+          "notify": "Benachrichtigungsdienst"
+        }
+      },
+      "room": {
+        "title": "Raum",
+        "description": "Raum mit Lautsprecher hinzufügen. Anwesenheits-Entitäten können Bewegungs-/Präsenzmelder sein, aber auch Lichter, Schalter oder Media Player: 'an', 'zu Hause' oder 'spielt' zählt als jemand da. Räume ohne Anwesenheits-Entitäten bekommen immer Ansagen.",
+        "data": {
+          "name": "Raumname",
+          "speaker": "Lautsprecher",
+          "presence": "Anwesenheits-Entitäten",
+          "return_room": "Heimkehr-Raum",
+          "add_another": "Weiteren Raum hinzufügen"
+        },
+        "data_description": {
+          "return_room": "Nach der Heimkehr werden verpasste Nachrichten zugestellt, sobald in einem Heimkehr-Raum Bewegung erkannt wird – auf dem Lautsprecher dieses Raums."
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Presence Notify",
+        "menu_options": {
+          "general": "Allgemeine Einstellungen",
+          "persons": "Personen und Push-Dienste",
+          "add_room": "Raum hinzufügen",
+          "edit_room": "Raum bearbeiten",
+          "remove_room": "Räume entfernen"
+        }
+      },
+      "general": {
+        "title": "Allgemeine Einstellungen",
+        "data": {
+          "quiet_start": "Ruhezeit Beginn",
+          "quiet_end": "Ruhezeit Ende",
+          "ai_task_entity": "KI-Aufgabe für das Briefing (optional)",
+          "tts_entity": "TTS-Dienst für Nicht-Alexa-Lautsprecher (optional)",
+          "max_pending": "Maximal gespeicherte Nachrichten",
+          "high_priority_push": "Push mit hoher Priorität senden",
+          "push_images_separately": "Gespeicherte Nachrichten mit Bild zusätzlich einzeln pushen"
+        }
+      },
+      "persons": {
+        "title": "Personen",
+        "data": {
+          "persons": "Personen"
+        }
+      },
+      "person_notify": {
+        "title": "Push für {person}",
+        "description": "Welcher Benachrichtigungsdienst erreicht {person}?",
+        "data": {
+          "notify": "Benachrichtigungsdienst"
+        }
+      },
+      "add_room": {
+        "title": "Raum hinzufügen",
+        "data": {
+          "name": "Raumname",
+          "speaker": "Lautsprecher",
+          "presence": "Anwesenheits-Entitäten",
+          "return_room": "Heimkehr-Raum"
+        }
+      },
+      "edit_room": {
+        "title": "Raum bearbeiten",
+        "data": {
+          "room": "Raum"
+        }
+      },
+      "edit_room_details": {
+        "title": "Raum bearbeiten",
+        "data": {
+          "name": "Raumname",
+          "speaker": "Lautsprecher",
+          "presence": "Anwesenheits-Entitäten",
+          "return_room": "Heimkehr-Raum"
+        }
+      },
+      "remove_room": {
+        "title": "Räume entfernen",
+        "data": {
+          "room": "Räume"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "pending": {
+        "name": "Gespeicherte Nachrichten"
+      },
+      "last_delivery": {
+        "name": "Letzte Zustellung"
+      }
+    },
+    "binary_sensor": {
+      "waiting": {
+        "name": "Wartet auf Heimkehr-Raum"
+      }
+    },
+    "button": {
+      "deliver": {
+        "name": "Jetzt zustellen"
+      },
+      "clear": {
+        "name": "Gespeicherte Nachrichten löschen"
+      }
+    }
+  },
+  "exceptions": {
+    "not_loaded": {
+      "message": "Presence Notify ist nicht eingerichtet."
+    }
+  },
+  "services": {
+    "send": {
+      "name": "Senden",
+      "description": "Push an alle Anwesenden und Ansage auf den Lautsprechern in Hörweite. Ist niemand zu Hause, wird die Nachricht gespeichert.",
+      "fields": {
+        "title": {
+          "name": "Titel",
+          "description": "Titel der Nachricht."
+        },
+        "message": {
+          "name": "Nachricht",
+          "description": "Text der Nachricht."
+        },
+        "data": {
+          "name": "Zusatzdaten",
+          "description": "Zusätzliche Push-Daten, z. B. Bild oder Aktionen."
+        },
+        "speakers": {
+          "name": "Lautsprecher",
+          "description": "Nur diese Lautsprecher verwenden (Standard: alle eingerichteten)."
+        },
+        "ignore_quiet_hours": {
+          "name": "Ruhezeit ignorieren",
+          "description": "Auch während der Ruhezeit ansagen."
+        }
+      }
+    },
+    "deliver_pending": {
+      "name": "Gespeicherte Nachrichten zustellen",
+      "description": "Alle gespeicherten Nachrichten jetzt als ein Briefing zustellen.",
+      "fields": {
+        "speakers": {
+          "name": "Lautsprecher",
+          "description": "Auf diesen Lautsprechern ansagen (Standard: Lautsprecher in Hörweite)."
+        }
+      }
+    },
+    "clear_pending": {
+      "name": "Gespeicherte Nachrichten löschen",
+      "description": "Alle gespeicherten Nachrichten löschen, ohne sie zuzustellen."
+    }
+  }
+}
