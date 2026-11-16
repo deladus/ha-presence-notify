@@ -17,6 +17,9 @@ from homeassistant.helpers import selector
 
 from .const import (
     CONF_AI_TASK,
+    CONF_DOOR_WINDOW,
+    CONF_ENTRY_DOORS,
+    CONF_PET_MODE,
     CONF_ASK_ALEXA,
     CONF_ASK_SCRIPT,
     CONF_HIGH_PRIORITY,
@@ -37,6 +40,7 @@ from .const import (
     CONF_ROOMS,
     CONF_SPEAKER,
     CONF_TTS_ENTITY,
+    DEFAULT_DOOR_WINDOW,
     DEFAULT_IMAGE_MERGE_SECONDS,
     DEFAULT_MAX_PENDING,
     DEFAULT_QUIET_END,
@@ -81,6 +85,7 @@ def _general_schema(full: bool) -> vol.Schema:
         vol.Optional(CONF_TTS_ENTITY): selector.EntitySelector(
             selector.EntitySelectorConfig(domain="tts")
         ),
+        vol.Required(CONF_PET_MODE, default=False): selector.BooleanSelector(),
         vol.Required(CONF_ASK_ALEXA, default=False): selector.BooleanSelector(),
     }
     if full:
@@ -166,6 +171,27 @@ def _home_states_schema(hass: HomeAssistant, entity_id: str, current: list[str])
     )
 
 
+PET_MODE_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_ENTRY_DOORS): selector.EntitySelector(
+            selector.EntitySelectorConfig(
+                filter=[
+                    selector.EntityFilterSelectorConfig(
+                        domain="binary_sensor", device_class=["door", "garage_door", "opening"]
+                    ),
+                    selector.EntityFilterSelectorConfig(domain="lock"),
+                ],
+                multiple=True,
+            )
+        ),
+        vol.Required(CONF_DOOR_WINDOW, default=DEFAULT_DOOR_WINDOW): selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=0, max=60, unit_of_measurement="min", mode=selector.NumberSelectorMode.BOX
+            )
+        ),
+    }
+)
+
 ASK_ALEXA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_ASK_SCRIPT): selector.EntitySelector(
@@ -244,12 +270,25 @@ class PresenceNotifyConfigFlow(_PersonsMixin, ConfigFlow, domain=DOMAIN):
         if self._opts.get(CONF_ASK_ALEXA):
             return await self.async_step_ask_alexa()
         self._opts.pop(CONF_ASK_SCRIPT, None)
+        return await self._after_ask()
+
+    async def _after_ask(self) -> ConfigFlowResult:
+        if self._opts.get(CONF_PET_MODE):
+            return await self.async_step_pet_mode()
+        self._opts.pop(CONF_ENTRY_DOORS, None)
         return await self.async_step_persons()
+
+    async def async_step_pet_mode(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            self._opts[CONF_ENTRY_DOORS] = list(user_input[CONF_ENTRY_DOORS])
+            self._opts[CONF_DOOR_WINDOW] = int(user_input[CONF_DOOR_WINDOW])
+            return await self.async_step_persons()
+        return self.async_show_form(step_id="pet_mode", data_schema=PET_MODE_SCHEMA)
 
     async def async_step_ask_alexa(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             self._opts[CONF_ASK_SCRIPT] = user_input[CONF_ASK_SCRIPT]
-            return await self.async_step_persons()
+            return await self._after_ask()
         return self.async_show_form(
             step_id="ask_alexa",
             data_schema=ASK_ALEXA_SCHEMA,
@@ -348,12 +387,26 @@ class PresenceNotifyOptionsFlow(_PersonsMixin, OptionsFlow):
         if self._opts.get(CONF_ASK_ALEXA):
             return await self.async_step_ask_alexa()
         self._opts.pop(CONF_ASK_SCRIPT, None)
+        return await self._after_ask()
+
+    async def _after_ask(self) -> ConfigFlowResult:
+        if self._opts.get(CONF_PET_MODE):
+            return await self.async_step_pet_mode()
+        self._opts.pop(CONF_ENTRY_DOORS, None)
         return self._save()
+
+    async def async_step_pet_mode(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            self._opts[CONF_ENTRY_DOORS] = list(user_input[CONF_ENTRY_DOORS])
+            self._opts[CONF_DOOR_WINDOW] = int(user_input[CONF_DOOR_WINDOW])
+            return self._save()
+        schema = self.add_suggested_values_to_schema(PET_MODE_SCHEMA, self._opts)
+        return self.async_show_form(step_id="pet_mode", data_schema=schema)
 
     async def async_step_ask_alexa(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             self._opts[CONF_ASK_SCRIPT] = user_input[CONF_ASK_SCRIPT]
-            return self._save()
+            return await self._after_ask()
         schema = self.add_suggested_values_to_schema(ASK_ALEXA_SCHEMA, self._opts)
         return self.async_show_form(
             step_id="ask_alexa",

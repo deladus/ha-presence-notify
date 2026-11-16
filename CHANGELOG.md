@@ -2,6 +2,7 @@
 
 ## 0.3.0b1 (beta)
 - New action `presence_notify.ask`: yes/no question by push with buttons to everyone at home (or the first person with a "Pass on" button when nobody is home). First answer wins, returns `answer` and `by`
+- Pet mode (optional): after coming home, motion in a return room only counts once an entry door was opened or a lock unlocked (a door opened up to X minutes before the arrival counts too) – pets or a robot vacuum no longer trigger the briefing early
 - Optional Alexa questions (experts only): switch in the general settings plus script selection, guide in `docs/alexa-rueckfragen.md`
 
 ## 0.2.0b2 (beta)

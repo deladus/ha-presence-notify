@@ -14,13 +14,15 @@
           "ai_task_entity": "KI-Aufgabe für das Briefing (optional)",
           "tts_entity": "TTS-Dienst für Nicht-Alexa-Lautsprecher (optional)",
           "home_entity": "Anwesenheitsquelle (optional)",
-          "ask_alexa": "Alexa-Rückfragen (nur für Experten)"
+          "ask_alexa": "Alexa-Rückfragen (nur für Experten)",
+          "pet_mode": "Haustiermodus (zuerst Haustür)"
         },
         "data_description": {
           "ai_task_entity": "Fasst mehrere verpasste Nachrichten zu einer Ansage zusammen. Ohne KI wird eine einfache Liste vorgelesen.",
           "tts_entity": "Alexa-Media-Lautsprecher werden direkt angesprochen, andere Lautsprecher brauchen einen TTS-Dienst.",
           "home_entity": "Z. B. ein Hausmodus (Auswahlliste) oder ein Ist-jemand-zuhause-Sensor. Wenn gesetzt, entscheidet sie, ob jemand zu Hause ist; die Personen legen dann nur fest, wer Push bekommt.",
-          "ask_alexa": "Alexa kann Ja/Nein-Fragen in dem Raum stellen, in dem gerade jemand erkannt wird. Funktioniert nur, wenn der Alexa-Skill „Actionable Notifications“ samt Skript in Home Assistant bereits eingerichtet ist. Nur für Experten empfohlen – siehe Anleitung: {docs_url}"
+          "ask_alexa": "Alexa kann Ja/Nein-Fragen in dem Raum stellen, in dem gerade jemand erkannt wird. Funktioniert nur, wenn der Alexa-Skill „Actionable Notifications“ samt Skript in Home Assistant bereits eingerichtet ist. Nur für Experten empfohlen – siehe Anleitung: {docs_url}",
+          "pet_mode": "Bewegung im Heimkehr-Raum zählt erst, nachdem eine Eingangstür geöffnet wurde. So lösen Haustiere oder ein Saugroboter das Briefing nicht aus, bevor ihr im Raum seid."
         }
       },
       "persons": {
@@ -67,6 +69,14 @@
         "data": {
           "ask_alexa_script": "Skript für Alexa-Rückfragen"
         }
+      },
+      "pet_mode": {
+        "title": "Haustiermodus",
+        "description": "Nach der Heimkehr zählt Bewegung im Heimkehr-Raum erst, wenn eine dieser Türen geöffnet (bzw. ein Schloss aufgeschlossen) wurde. Eine Türöffnung kurz bevor die Heimkehr erkannt wird, zählt auch.",
+        "data": {
+          "entry_doors": "Eingangstüren / Schlösser",
+          "door_window": "Tür darf so lange vor der Heimkehr geöffnet worden sein"
+        }
       }
     }
   },
@@ -95,13 +105,15 @@
           "push_on_arrival": "Briefing-Push sofort bei der Heimkehr",
           "home_entity": "Anwesenheitsquelle (optional)",
           "image_merge_seconds": "Gleiche Meldungen mit Bild zusammenfassen innerhalb von",
-          "ask_alexa": "Alexa-Rückfragen (nur für Experten)"
+          "ask_alexa": "Alexa-Rückfragen (nur für Experten)",
+          "pet_mode": "Haustiermodus (zuerst Haustür)"
         },
         "data_description": {
           "push_on_arrival": "Sonst kommt der Push erst bei Bewegung im Heimkehr-Raum, zusammen mit der Ansage.",
           "home_entity": "Z. B. ein Hausmodus (Auswahlliste) oder ein Ist-jemand-zuhause-Sensor. Wenn gesetzt, entscheidet sie, ob jemand zu Hause ist; die Personen legen dann nur fest, wer Push bekommt.",
           "image_merge_seconds": "Jede Meldung mit Bild (z. B. Türklingel) behält ihren eigenen Schnappschuss. Nur eine gleiche Meldung innerhalb dieser Zeit wird zusammengefasst (dieselbe Person klingelt nochmal).",
-          "ask_alexa": "Alexa kann Ja/Nein-Fragen in dem Raum stellen, in dem gerade jemand erkannt wird. Funktioniert nur, wenn der Alexa-Skill „Actionable Notifications“ samt Skript in Home Assistant bereits eingerichtet ist. Nur für Experten empfohlen – siehe Anleitung: {docs_url}"
+          "ask_alexa": "Alexa kann Ja/Nein-Fragen in dem Raum stellen, in dem gerade jemand erkannt wird. Funktioniert nur, wenn der Alexa-Skill „Actionable Notifications“ samt Skript in Home Assistant bereits eingerichtet ist. Nur für Experten empfohlen – siehe Anleitung: {docs_url}",
+          "pet_mode": "Bewegung im Heimkehr-Raum zählt erst, nachdem eine Eingangstür geöffnet wurde. So lösen Haustiere oder ein Saugroboter das Briefing nicht aus, bevor ihr im Raum seid."
         }
       },
       "persons": {
@@ -162,6 +174,14 @@
         "description": "Wähle das Skript, das eine Alexa Actionable Notification startet (meist script.activate_alexa_actionable_notification). Es muss die Variablen text, event_id, alexa_device und suppress_confirmation annehmen. Anleitung: {docs_url}",
         "data": {
           "ask_alexa_script": "Skript für Alexa-Rückfragen"
+        }
+      },
+      "pet_mode": {
+        "title": "Haustiermodus",
+        "description": "Nach der Heimkehr zählt Bewegung im Heimkehr-Raum erst, wenn eine dieser Türen geöffnet (bzw. ein Schloss aufgeschlossen) wurde. Eine Türöffnung kurz bevor die Heimkehr erkannt wird, zählt auch.",
+        "data": {
+          "entry_doors": "Eingangstüren / Schlösser",
+          "door_window": "Tür darf so lange vor der Heimkehr geöffnet worden sein"
         }
       }
     }

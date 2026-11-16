@@ -30,6 +30,9 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_AI_TASK,
+    CONF_DOOR_WINDOW,
+    CONF_ENTRY_DOORS,
+    CONF_PET_MODE,
     CONF_ASK_ALEXA,
     CONF_ASK_SCRIPT,
     CONF_HIGH_PRIORITY,
@@ -50,6 +53,7 @@ from .const import (
     CONF_ROOMS,
     CONF_SPEAKER,
     CONF_TTS_ENTITY,
+    DEFAULT_DOOR_WINDOW,
     DEFAULT_IMAGE_MERGE_SECONDS,
     DEFAULT_MAX_PENDING,
     DEFAULT_QUIET_END,
@@ -161,6 +165,8 @@ class PresenceNotifyManager:
         self._someone_home: bool = False
         self._deliver_lock = asyncio.Lock()
         self._prepared: tuple[list[dict[str, Any]], str, str] | None = None
+        self._last_door_open: datetime | None = None
+        self._armed: bool = False
 
     # ------------------------------------------------------------------ config
 
@@ -203,6 +209,11 @@ class PresenceNotifyManager:
                 async_track_state_change_event(
                     self.hass, person_ids, self._handle_person_change
                 )
+            )
+        doors = self.options.get(CONF_ENTRY_DOORS) or []
+        if self.options.get(CONF_PET_MODE) and doors:
+            self._unsubs.append(
+                async_track_state_change_event(self.hass, doors, self._handle_door)
             )
         # Messages left over from before a restart: wait again if someone is home
         if self.pending and self._someone_home:
@@ -460,6 +471,44 @@ class PresenceNotifyManager:
             # everybody left again: keep messages, stop waiting
             self._stop_waiting()
 
+    @property
+    def pet_mode(self) -> bool:
+        return bool(self.options.get(CONF_PET_MODE) and self.options.get(CONF_ENTRY_DOORS))
+
+    @property
+    def wait_phase(self) -> str | None:
+        if not self.waiting:
+            return None
+        return "motion" if self._armed else "door"
+
+    @staticmethod
+    def _is_door_open_event(old: str | None, new: str | None) -> bool:
+        if new is None:
+            return False
+        if new == "on":  # binary_sensor door/opening
+            return old != "on"
+        if new in ("unlocked", "open", "opening", "unlocking"):  # lock
+            return old not in ("unlocked", "open", "opening", "unlocking")
+        return False
+
+    @callback
+    def _handle_door(self, event: Event[EventStateChangedData]) -> None:
+        old = event.data["old_state"]
+        new = event.data["new_state"]
+        if not self._is_door_open_event(old.state if old else None, new.state if new else None):
+            return
+        self._last_door_open = dt_util.utcnow()
+        if self.waiting and not self._armed:
+            self._armed = True
+            _LOGGER.debug("Entry door opened, motion in return rooms now counts")
+            async_dispatcher_send(self.hass, SIGNAL_UPDATE)
+
+    def _door_opened_recently(self) -> bool:
+        if self._last_door_open is None:
+            return False
+        window = int(self.options.get(CONF_DOOR_WINDOW, DEFAULT_DOOR_WINDOW)) * 60
+        return (dt_util.utcnow() - self._last_door_open).total_seconds() <= window
+
     def _return_rooms(self) -> list[dict[str, Any]]:
         return [
             r for r in self.rooms if r.get(CONF_RETURN_ROOM) and r.get(CONF_PRESENCE)
@@ -478,8 +527,13 @@ class PresenceNotifyManager:
             for eid in room[CONF_PRESENCE]:
                 entity_to_room.setdefault(eid, room)
 
+        # pet mode: motion only counts after an entry door was opened
+        self._armed = (not self.pet_mode) or self._door_opened_recently()
+
         @callback
         def _motion(event: Event[EventStateChangedData]) -> None:
+            if not self._armed:
+                return
             new = event.data["new_state"]
             old = event.data["old_state"]
             if new is None or new.state not in PRESENCE_ON_STATES:
@@ -507,6 +561,7 @@ class PresenceNotifyManager:
         if self._wait_unsub:
             self._wait_unsub()
             self._wait_unsub = None
+        self._armed = False
         if self.waiting:
             self.waiting = False
             async_dispatcher_send(self.hass, SIGNAL_UPDATE)

@@ -21,6 +21,7 @@ One action, `presence_notify.send`, replaces your notification scripts:
 - **Nobody is home:** the notification is **stored** (it survives restarts). Identical notifications are merged and counted ("3 times, first at 09:10").
 - **Coming home:** The service waits until motion is detected in a **return room** (e.g. living room or kitchen) rather than using a fixed delay. Then the briefing is announced there, **as one briefing**, even during quiet hours. With an AI task entity (e.g. Google Gemini), several notifications are summarized into a natural announcement. Without one, a short list is read out.
 - The push with the briefing goes out **immediately on arrival** (optional: wait for motion instead).
+- **Pet mode** (optional): motion only counts after an entry door was opened or unlocked, so pets or a robot vacuum don't trigger the briefing before you are in the room.
 - If everybody leaves again before reaching a return room, notifications stay stored.
 
 Speakers: Alexa Media Player devices are announced directly via `notify.alexa_media` (announce). Any other `media_player` is announced via `tts.speak` with a TTS engine you choose.
@@ -84,7 +85,7 @@ data:
 
 ## Known limitations
 
-- Pets can trigger presence sensors in a return room.
+- Pets can trigger presence sensors in a return room – use pet mode. A pet running ahead of you right after the door opens can still trigger it.
 - Camera images: when a notification with `image: /api/camera_proxy/camera.x` is stored, a snapshot is saved to the media folder (`/media/presence_notify`, requires login) so it shows the right moment. One picture is attached to the briefing push; several are pushed one by one, grouped. Snapshots are deleted 15 minutes after delivery.
 - Other push extras (e.g. actions) of individual notifications are dropped in a summarized briefing.
 

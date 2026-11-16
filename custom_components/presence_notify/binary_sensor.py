@@ -21,3 +21,7 @@ class WaitingSensor(PresenceNotifyEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool:
         return self.manager.waiting
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str | None]:
+        return {"phase": self.manager.wait_phase}

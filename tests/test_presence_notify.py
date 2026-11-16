@@ -455,3 +455,74 @@ async def test_config_flow_ask_alexa_step(hass: HomeAssistant) -> None:
     assert result["step_id"] == "ask_alexa"
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {"ask_alexa_script": "script.x"})
     assert result["step_id"] == "persons"
+
+
+async def test_pet_mode_motion_before_door_ignored(hass: HomeAssistant) -> None:
+    calls = _register_services(hass)
+    hass.states.async_set("binary_sensor.haustuer", "off")
+    entry = await _setup(hass, home=False, pet_mode=True,
+                         entry_doors=["binary_sensor.haustuer"], door_window=10)
+    await hass.services.async_call(DOMAIN, "send", {"title": "X", "message": "a"}, blocking=True)
+    hass.states.async_set("person.dennis", "home")
+    await hass.async_block_till_done()
+    w = hass.states.get("binary_sensor.domestic_intelligence_service_waiting_for_return")
+    assert w.state == "on" and w.attributes["phase"] == "door"
+    # dog / vacuum in the living room before anyone opened the door
+    hass.states.async_set("binary_sensor.wz", "on")
+    await hass.async_block_till_done()
+    hass.states.async_set("binary_sensor.wz", "off")
+    await hass.async_block_till_done()
+    assert calls["tts"] == [] and len(entry.runtime_data.pending) == 1
+    # door opens, then motion -> announcement
+    hass.states.async_set("binary_sensor.haustuer", "on")
+    await hass.async_block_till_done()
+    assert hass.states.get("binary_sensor.domestic_intelligence_service_waiting_for_return").attributes["phase"] == "motion"
+    hass.states.async_set("binary_sensor.kueche", "on")
+    await hass.async_block_till_done()
+    assert calls["tts"][0].data["media_player_entity_id"] == ["media_player.kueche"]
+    assert entry.runtime_data.pending == []
+
+
+async def test_pet_mode_door_before_arrival_and_lock(hass: HomeAssistant, freezer) -> None:
+    calls = _register_services(hass)
+    hass.states.async_set("lock.haustuer", "locked")
+    await _setup(hass, home=False, pet_mode=True, entry_doors=["lock.haustuer"], door_window=10)
+    await hass.services.async_call(DOMAIN, "send", {"title": "X", "message": "a"}, blocking=True)
+    # unlocked 3 minutes before the arrival is detected
+    hass.states.async_set("lock.haustuer", "unlocked")
+    await hass.async_block_till_done()
+    freezer.tick(180)
+    hass.states.async_set("person.dennis", "home")
+    await hass.async_block_till_done()
+    assert hass.states.get("binary_sensor.domestic_intelligence_service_waiting_for_return").attributes["phase"] == "motion"
+    hass.states.async_set("binary_sensor.wz", "on")
+    await hass.async_block_till_done()
+    assert calls["tts"][0].data["media_player_entity_id"] == ["media_player.studio"]
+
+
+async def test_pet_mode_door_too_early(hass: HomeAssistant, freezer) -> None:
+    calls = _register_services(hass)
+    hass.states.async_set("binary_sensor.haustuer", "off")
+    await _setup(hass, home=False, pet_mode=True, entry_doors=["binary_sensor.haustuer"], door_window=10)
+    await hass.services.async_call(DOMAIN, "send", {"title": "X", "message": "a"}, blocking=True)
+    hass.states.async_set("binary_sensor.haustuer", "on")
+    await hass.async_block_till_done()
+    hass.states.async_set("binary_sensor.haustuer", "off")
+    freezer.tick(15 * 60)  # e.g. a house sitter left 15 min ago
+    hass.states.async_set("person.dennis", "home")
+    await hass.async_block_till_done()
+    hass.states.async_set("binary_sensor.wz", "on")
+    await hass.async_block_till_done()
+    assert calls["tts"] == []
+
+
+async def test_config_flow_pet_mode_step(hass: HomeAssistant) -> None:
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {
+        "quiet_start": "22:30:00", "quiet_end": "08:00:00", "pet_mode": True, "ask_alexa": True})
+    assert result["step_id"] == "ask_alexa"
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"ask_alexa_script": "script.x"})
+    assert result["step_id"] == "pet_mode"
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {
+        "entry_doors": ["binary_sensor.haustuer"], "door_window": 5})
+    assert result["step_id"] == "persons"

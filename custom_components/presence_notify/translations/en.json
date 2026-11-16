@@ -14,13 +14,15 @@
           "ai_task_entity": "AI task for the briefing (optional)",
           "tts_entity": "TTS engine for non-Alexa speakers (optional)",
           "home_entity": "Home source (optional)",
-          "ask_alexa": "Alexa questions (experts only)"
+          "ask_alexa": "Alexa questions (experts only)",
+          "pet_mode": "Pet mode (entry door first)"
         },
         "data_description": {
           "ai_task_entity": "Summarizes several missed notifications into one announcement. Without it, a simple list is read out.",
           "tts_entity": "Alexa Media speakers are announced directly; other speakers need a TTS engine.",
           "home_entity": "E.g. a house mode select or an 'anyone home' sensor. If set, it decides whether someone is home; persons then only define who gets push notifications.",
-          "ask_alexa": "Lets Alexa ask yes/no questions in the room where someone is detected. Only works if the Alexa skill \"Actionable Notifications\" and its script are already set up in Home Assistant. Recommended for experts only – see the guide: {docs_url}"
+          "ask_alexa": "Lets Alexa ask yes/no questions in the room where someone is detected. Only works if the Alexa skill \"Actionable Notifications\" and its script are already set up in Home Assistant. Recommended for experts only – see the guide: {docs_url}",
+          "pet_mode": "Motion in a return room only counts after an entry door was opened. Prevents pets or a robot vacuum from triggering the briefing before you are in the room."
         }
       },
       "persons": {
@@ -67,6 +69,14 @@
         "data": {
           "ask_alexa_script": "Script for Alexa questions"
         }
+      },
+      "pet_mode": {
+        "title": "Pet mode",
+        "description": "After coming home, motion in a return room only counts once one of these doors was opened (or a lock unlocked). A door opened shortly before the arrival is detected also counts.",
+        "data": {
+          "entry_doors": "Entry doors / locks",
+          "door_window": "Door may open up to … before arrival"
+        }
       }
     }
   },
@@ -95,13 +105,15 @@
           "push_on_arrival": "Push the briefing right away when someone comes home",
           "home_entity": "Home source (optional)",
           "image_merge_seconds": "Merge repeated notifications with an image within",
-          "ask_alexa": "Alexa questions (experts only)"
+          "ask_alexa": "Alexa questions (experts only)",
+          "pet_mode": "Pet mode (entry door first)"
         },
         "data_description": {
           "push_on_arrival": "Without this, the push waits for motion in a return room, together with the announcement.",
           "home_entity": "E.g. a house mode select or an 'anyone home' sensor. If set, it decides whether someone is home; persons then only define who gets push notifications.",
           "image_merge_seconds": "Every notification with an image (e.g. doorbell) keeps its own snapshot. Only an identical one within this time is merged (the same person ringing twice).",
-          "ask_alexa": "Lets Alexa ask yes/no questions in the room where someone is detected. Only works if the Alexa skill \"Actionable Notifications\" and its script are already set up in Home Assistant. Recommended for experts only – see the guide: {docs_url}"
+          "ask_alexa": "Lets Alexa ask yes/no questions in the room where someone is detected. Only works if the Alexa skill \"Actionable Notifications\" and its script are already set up in Home Assistant. Recommended for experts only – see the guide: {docs_url}",
+          "pet_mode": "Motion in a return room only counts after an entry door was opened. Prevents pets or a robot vacuum from triggering the briefing before you are in the room."
         }
       },
       "persons": {
@@ -162,6 +174,14 @@
         "description": "Select the script that starts an Alexa actionable notification (usually script.activate_alexa_actionable_notification). It must accept the variables text, event_id, alexa_device and suppress_confirmation. Guide: {docs_url}",
         "data": {
           "ask_alexa_script": "Script for Alexa questions"
+        }
+      },
+      "pet_mode": {
+        "title": "Pet mode",
+        "description": "After coming home, motion in a return room only counts once one of these doors was opened (or a lock unlocked). A door opened shortly before the arrival is detected also counts.",
+        "data": {
+          "entry_doors": "Entry doors / locks",
+          "door_window": "Door may open up to … before arrival"
         }
       }
     }
