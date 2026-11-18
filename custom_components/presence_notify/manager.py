@@ -6,6 +6,9 @@ Responsibilities:
 - pending store: persistent, duplicates are merged and counted
 - arrival: after someone comes home, wait for the first motion in a
   "return room" and deliver everything there as one briefing
+- priorities: emergency (all channels, repeated until acknowledged),
+  urgent, normal, low
+- clear: remove a tagged notification from all phones and from the store
 """
 
 from __future__ import annotations
@@ -32,6 +35,9 @@ from .const import (
     ACTION_PREFIX,
     CONF_AI_TASK,
     CONF_DOOR_WINDOW,
+    CONF_EMERGENCY_INTERVAL,
+    CONF_EMERGENCY_REPEATS,
+    CONF_EMERGENCY_STEP,
     CONF_ENTRY_DOORS,
     CONF_PET_MODE,
     CONF_ASK_ALEXA,
@@ -56,15 +62,24 @@ from .const import (
     CONF_SPEAKER,
     CONF_TTS_ENTITY,
     DEFAULT_DOOR_WINDOW,
+    DEFAULT_EMERGENCY_INTERVAL,
+    DEFAULT_EMERGENCY_REPEATS,
+    DEFAULT_EMERGENCY_STEP,
     DEFAULT_IMAGE_MERGE_SECONDS,
     DEFAULT_MAX_PENDING,
     DEFAULT_QUIET_END,
     DEFAULT_QUIET_START,
     DOMAIN,
+    EMERGENCY_DATA,
     EVENT_DELIVERED,
     HIGH_PRIORITY_DATA,
+    LOW_PRIORITY_DATA,
     PERSON_HOME_STATES,
     PRESENCE_ON_STATES,
+    PRIORITY_EMERGENCY,
+    PRIORITY_LOW,
+    PRIORITY_NORMAL,
+    PRIORITY_URGENT,
     SIGNAL_UPDATE,
     STORAGE_KEY,
     STORAGE_VERSION,
@@ -74,6 +89,13 @@ _LOGGER = logging.getLogger(__name__)
 
 AI_TIMEOUT = 60
 AI_ATTEMPTS = 2
+
+# Emergency announcements: how long to keep the raised volume. Alexa returns
+# before it has finished speaking, so the duration is estimated from the text.
+ANNOUNCE_BASE_SECONDS = 4.0
+ANNOUNCE_SECONDS_PER_CHAR = 0.07
+ANNOUNCE_MAX_SECONDS = 60.0
+VOLUME_SETTLE_SECONDS = 1.0
 
 TEXTS = {
     "de": {
@@ -105,6 +127,12 @@ TEXTS = {
             "nur mit dem Ansagetext.\n\nMeldungen:\n{items}"
         ),
         "item_repeat": " [{n}-mal aufgetreten, zuerst {first}]",
+        "seen": "Gesehen",
+        "acked": "{who} hat den Notfall quittiert.",
+        "acked_alexa": "Notfall per Alexa quittiert.",
+        "acked_anon": "Der Notfall wurde quittiert.",
+        "heard": "Hast du das gehört?",
+        "heard_ok": "Danke, ich habe quittiert.",
     },
     "en": {
         "yes": "Yes",
@@ -134,6 +162,12 @@ TEXTS = {
             "the announcement text only.\n\nNotifications:\n{items}"
         ),
         "item_repeat": " [occurred {n} times, first at {first}]",
+        "seen": "Seen",
+        "acked": "{who} acknowledged the emergency.",
+        "acked_alexa": "Emergency acknowledged via Alexa.",
+        "acked_anon": "The emergency was acknowledged.",
+        "heard": "Did you hear that?",
+        "heard_ok": "Thanks, acknowledged.",
     },
 }
 
@@ -147,17 +181,30 @@ def _clean_data(data: dict[str, Any] | None) -> dict[str, Any]:
     return {k: v for k, v in (data or {}).items() if not k.startswith("_")}
 
 
-def _with_priority(extras: dict[str, Any] | None) -> dict[str, Any]:
-    """Push data with high priority for Android and iOS.
+def _merge_push(base: dict[str, Any], extras: dict[str, Any] | None) -> dict[str, Any]:
+    """Push data from a priority preset plus the caller's data.
 
     Keys given by the caller win; the iOS ``push`` block is merged key by key,
     so e.g. a custom sound keeps the interruption level.
     """
     extras = dict(extras or {})
-    merged = {**HIGH_PRIORITY_DATA, **extras}
-    if isinstance(extras.get("push"), dict):
-        merged["push"] = {**HIGH_PRIORITY_DATA["push"], **extras["push"]}
+    merged = {**base, **extras}
+    if isinstance(extras.get("push"), dict) and isinstance(base.get("push"), dict):
+        merged["push"] = {**base["push"], **extras["push"]}
     return merged
+
+
+def _with_priority(extras: dict[str, Any] | None) -> dict[str, Any]:
+    """Push data with high priority for Android and iOS."""
+    return _merge_push(HIGH_PRIORITY_DATA, extras)
+
+
+def _escape_ssml(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _announce_seconds(text: str) -> float:
+    return min(ANNOUNCE_BASE_SECONDS + ANNOUNCE_SECONDS_PER_CHAR * len(text), ANNOUNCE_MAX_SECONDS)
 
 
 def _button_id(title: str) -> str:
@@ -211,6 +258,7 @@ class PresenceNotifyManager:
         self._prepared: tuple[list[dict[str, Any]], str, str] | None = None
         self._last_door_open: datetime | None = None
         self._armed: bool = False
+        self._emergencies: dict[str, dict[str, Any]] = {}
 
     # ------------------------------------------------------------------ config
 
@@ -266,6 +314,10 @@ class PresenceNotifyManager:
     @callback
     def async_unload(self) -> None:
         self._stop_waiting()
+        for emergency in list(self._emergencies.values()):
+            if task := emergency.get("task"):
+                task.cancel()
+        self._emergencies.clear()
         for unsub in self._unsubs:
             unsub()
         self._unsubs.clear()
@@ -389,11 +441,52 @@ class PresenceNotifyManager:
         speakers: list[str] | None = None,
         ignore_quiet_hours: bool = False,
         actions: list[dict[str, str]] | None = None,
+        priority: str = PRIORITY_NORMAL,
+        tag: str | None = None,
     ) -> None:
-        """Main entry point used by the presence_notify.send service."""
+        """Main entry point used by the presence_notify.send service.
+
+        - emergency: push to everyone and announce on all speakers, also at
+          night and when nobody is home; repeated until acknowledged
+        - urgent: push to everyone right away, announce in earshot if someone
+          is home (not during quiet hours)
+        - normal: push/announce if someone is home, otherwise store
+        - low: push only, and only if someone is home; otherwise dropped
+        """
         data = _with_actions(dict(data or {}), actions)
-        if not self.someone_home():
-            await self.async_store(title, message, data)
+        tag = (tag or str(data.get("tag") or "")).strip() or None
+        if tag:
+            data["tag"] = tag
+
+        if priority == PRIORITY_EMERGENCY:
+            await self._async_emergency(title, message, data, speakers, tag)
+            return
+
+        home = self.someone_home()
+        if priority == PRIORITY_LOW:
+            if home:
+                await self._push(title, message, _merge_push(LOW_PRIORITY_DATA, data), raw=True)
+            else:
+                _LOGGER.debug("Nobody home, low priority notification dropped: %s", title)
+            return
+
+        if priority == PRIORITY_URGENT:
+            jobs = [
+                self._push(title, message, _with_priority(data), persons=self.persons, raw=True)
+            ]
+            if home:
+                jobs.append(
+                    self._announce_to(
+                        self.speakers_in_earshot(speakers),
+                        self._ssml(title, message),
+                        ignore_quiet_hours,
+                    )
+                )
+            await asyncio.gather(*jobs)
+            return
+
+        if not home:
+            await self.async_store(title, message, data, tag)
             return
         await asyncio.gather(
             self._push(title, message, data),
@@ -404,12 +497,53 @@ class PresenceNotifyManager:
             ),
         )
 
-    async def async_store(self, title: str, message: str, data: dict[str, Any]) -> None:
+    @staticmethod
+    def _ssml(title: str, message: str) -> dict[str, str]:
+        """Announcement with the title emphasized on Alexa, plain text elsewhere."""
+        plain = f"{title}: {message}"
+        ssml = (
+            f"<emphasis level='strong'>{_escape_ssml(title)}</emphasis>: "
+            f"{_escape_ssml(message)}"
+        )
+        return {"plain": plain, "ssml": ssml}
+
+    async def async_remove(self, tag: str) -> None:
+        """Remove a tagged notification everywhere (presence_notify.clear).
+
+        Clears the push on all phones, drops it from the store (so it is not
+        part of the briefing) and ends an emergency with the same tag.
+        """
+        tag = tag.strip()
+        if not tag:
+            return
+        for emergency in list(self._emergencies.values()):
+            if emergency["tag"] == tag and not emergency["done"].is_set():
+                emergency["by"] = None
+                emergency["done"].set()
+        removed = [i for i in self.pending if i.get("tag") == tag]
+        if removed:
+            self.pending = [i for i in self.pending if i.get("tag") != tag]
+            self._delete_snapshots(removed)
+            if not self.pending:
+                self._stop_waiting()
+            await self._async_save()
+        await self._clear_push(tag, self.persons)
+
+    async def _clear_push(self, tag: str, persons: list[dict[str, str]]) -> None:
+        for person in persons:
+            await self._notify_person(
+                person, "", "clear_notification", _with_priority({"tag": tag})
+            )
+
+    async def async_store(
+        self, title: str, message: str, data: dict[str, Any], tag: str | None = None
+    ) -> None:
         """Store a message.
 
         Without an image, identical title+message are merged and counted.
         With an image (e.g. a doorbell), every message keeps its own snapshot;
         only a repeat within the merge window (same person ringing twice) is merged.
+        A message with a tag replaces a stored one with the same tag.
         """
         now = dt_util.now()
         now_str = now.strftime("%d.%m. %H:%M")
@@ -418,14 +552,20 @@ class PresenceNotifyManager:
 
         merged: dict[str, Any] | None = None
         remaining: list[dict[str, Any]] = []
+        replaced: list[dict[str, Any]] = []
         for item in self.pending:
             same = item.get("title") == title and item.get("message") == message
             if same and has_image:
                 same = now.timestamp() - float(item.get("ts", 0)) <= window
+            if tag and item.get("tag") != tag:
+                same = False
             if same and merged is None:
                 merged = item
+            elif tag and item.get("tag") == tag:
+                replaced.append(item)
             else:
                 remaining.append(item)
+        self._delete_snapshots(replaced)
 
         if merged is not None:
             merged["count"] = int(merged.get("count", 1)) + 1
@@ -438,17 +578,18 @@ class PresenceNotifyManager:
         else:
             if has_image:
                 data = await self._async_snapshot(data)
-            remaining.append(
-                {
-                    "title": title,
-                    "message": message,
-                    "data": data,
-                    "time": now_str,
-                    "first": now_str,
-                    "ts": now.timestamp(),
-                    "count": 1,
-                }
-            )
+            new_item: dict[str, Any] = {
+                "title": title,
+                "message": message,
+                "data": data,
+                "time": now_str,
+                "first": now_str,
+                "ts": now.timestamp(),
+                "count": 1,
+            }
+            if tag:
+                new_item["tag"] = tag
+            remaining.append(new_item)
         max_pending = int(self.options.get(CONF_MAX_PENDING, DEFAULT_MAX_PENDING))
         dropped = remaining[:-max_pending]
         self.pending = remaining[-max_pending:]
@@ -762,6 +903,251 @@ class PresenceNotifyManager:
         return self._fallback_text(items)
 
 
+    # -------------------------------------------------------------- emergency
+
+    @property
+    def emergency_active(self) -> bool:
+        return any(not e["done"].is_set() for e in self._emergencies.values())
+
+    def _name_for_user(self, user_id: str | None) -> str:
+        if not user_id:
+            return ""
+        for state in self.hass.states.async_all("person"):
+            if state.attributes.get("user_id") == user_id:
+                return state.name
+        return ""
+
+    def _all_speakers(self, allowed: list[str] | None) -> list[str]:
+        if allowed:
+            return list(dict.fromkeys(allowed))
+        return list(dict.fromkeys(r[CONF_SPEAKER] for r in self.rooms if r.get(CONF_SPEAKER)))
+
+    def _volume_step(self, speaker: str) -> int:
+        for room in self.rooms:
+            if room.get(CONF_SPEAKER) == speaker:
+                return int(room.get(CONF_EMERGENCY_STEP, DEFAULT_EMERGENCY_STEP) or 0)
+        return 0
+
+    async def _raise_volume(self, speakers: list[str]) -> dict[str, tuple[float, float]]:
+        """Raise each speaker by its room's step (Alexa scale 0–10, max 10).
+
+        Returns {speaker: (old, new)} for the speakers that were changed.
+        """
+        changed: dict[str, tuple[float, float]] = {}
+        for speaker in speakers:
+            step = self._volume_step(speaker)
+            state = self.hass.states.get(speaker)
+            old = state.attributes.get("volume_level") if state else None
+            if step <= 0 or old is None:
+                continue
+            new = round(min(1.0, float(old) + step / 10), 2)
+            if new <= float(old):
+                continue
+            try:
+                await self.hass.services.async_call(
+                    "media_player",
+                    "volume_set",
+                    {"entity_id": speaker, "volume_level": new},
+                    blocking=True,
+                )
+                changed[speaker] = (float(old), new)
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning("Raising the volume of %s failed: %s", speaker, err)
+        if changed and VOLUME_SETTLE_SECONDS:
+            await asyncio.sleep(VOLUME_SETTLE_SECONDS)
+        return changed
+
+    async def _restore_volume(self, changed: dict[str, tuple[float, float]]) -> None:
+        for speaker, (old, new) in changed.items():
+            state = self.hass.states.get(speaker)
+            current = state.attributes.get("volume_level") if state else None
+            if current is not None and abs(float(current) - new) > 0.011:
+                continue  # changed by hand in the meantime: leave it
+            try:
+                await self.hass.services.async_call(
+                    "media_player",
+                    "volume_set",
+                    {"entity_id": speaker, "volume_level": old},
+                    blocking=True,
+                )
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning("Restoring the volume of %s failed: %s", speaker, err)
+
+    async def _async_emergency(
+        self,
+        title: str,
+        message: str,
+        data: dict[str, Any],
+        speakers: list[str] | None,
+        tag: str | None,
+    ) -> None:
+        """Push right away; announcement and repetitions in the background."""
+        t = self.texts
+        eid = uuid.uuid4().hex[:10]
+        tag = tag or f"{DOMAIN}_emergency_{eid}"
+        ack_action = f"PN_ACK_{eid}"
+        alexa_id = f"{DOMAIN}_emergency_{eid}"
+        push_data = _merge_push(EMERGENCY_DATA, {**data, "tag": tag})
+        push_data["actions"] = [{"action": ack_action, "title": t["seen"]}] + list(
+            push_data.get("actions") or []
+        )
+        emergency: dict[str, Any] = {
+            "tag": tag,
+            "done": asyncio.Event(),
+            "by": None,
+            "acked": False,
+        }
+
+        @callback
+        def _ack(by: str) -> None:
+            if emergency["done"].is_set():
+                return
+            emergency["by"] = by
+            emergency["acked"] = True
+            emergency["done"].set()
+
+        emergency["ack"] = _ack
+
+        @callback
+        def _on_push(event: Event) -> None:
+            if event.data.get("action") == ack_action:
+                _ack(self._name_for_user(event.context.user_id))
+
+        @callback
+        def _on_alexa(event: Event) -> None:
+            if (
+                event.data.get("event_id") == alexa_id
+                and event.data.get("event_response_type") == "ResponseYes"
+            ):
+                _ack("Alexa")
+
+        unsubs = [
+            self.hass.bus.async_listen("mobile_app_notification_action", _on_push),
+            self.hass.bus.async_listen("alexa_actionable_notification", _on_alexa),
+        ]
+        self._emergencies[eid] = emergency
+        async_dispatcher_send(self.hass, SIGNAL_UPDATE)
+
+        async def _round(push: bool = True) -> None:
+            if push:
+                await self._push(title, message, push_data, persons=self.persons, raw=True)
+            if emergency["done"].is_set():
+                return
+            targets = self._all_speakers(speakers)
+            changed = await self._raise_volume(targets)
+            text = self._ssml(title, message)
+            await self._announce_to(targets, text, True)
+            if changed:
+                await asyncio.sleep(_announce_seconds(text["plain"]))
+                await self._restore_volume(changed)
+            if asked := await self._ask_heard(alexa_id, speakers):
+                emergency["alexa_speaker"] = asked
+
+        async def _repeat() -> None:
+            interval = float(
+                self.options.get(CONF_EMERGENCY_INTERVAL, DEFAULT_EMERGENCY_INTERVAL)
+            ) * 60
+            repeats = int(self.options.get(CONF_EMERGENCY_REPEATS, DEFAULT_EMERGENCY_REPEATS))
+            try:
+                await _round(push=False)  # first announcement
+                for _ in range(repeats):
+                    try:
+                        async with asyncio.timeout(interval):
+                            await emergency["done"].wait()
+                    except TimeoutError:
+                        await _round()
+                    if emergency["done"].is_set():
+                        break
+                if not emergency["done"].is_set():
+                    # last repetition sent: still give time to acknowledge it
+                    try:
+                        async with asyncio.timeout(interval):
+                            await emergency["done"].wait()
+                    except TimeoutError:
+                        pass
+            finally:
+                for unsub in unsubs:
+                    unsub()
+                self._emergencies.pop(eid, None)
+                async_dispatcher_send(self.hass, SIGNAL_UPDATE)
+            if emergency["acked"]:
+                await self._after_ack(title, tag, emergency["by"] or "")
+                if emergency["by"] == "Alexa" and emergency.get("alexa_speaker"):
+                    await self._alexa_say(emergency["alexa_speaker"], self.texts["heard_ok"])
+
+        # the push goes out before the service call returns; announcement,
+        # volume and repetitions run in the background
+        await self._push(title, message, push_data, persons=self.persons, raw=True)
+        emergency["task"] = self.entry.async_create_background_task(
+            self.hass, _repeat(), f"{DOMAIN} emergency {eid}"
+        )
+
+    async def _ask_heard(self, alexa_id: str, speakers: list[str] | None) -> str | None:
+        """Alexa asks "Did you hear that?" in the room where someone is detected.
+
+        Returns the speaker that was asked.
+        """
+        script = self.options.get(CONF_ASK_SCRIPT)
+        if not (self.options.get(CONF_ASK_ALEXA) and script):
+            return None
+        speaker = self._detected_speaker(speakers)
+        if not speaker:
+            return None
+        try:
+            await self.hass.services.async_call(
+                "script",
+                "turn_on",
+                {
+                    "entity_id": script,
+                    "variables": {
+                        "text": self.texts["heard"],
+                        "event_id": alexa_id,
+                        "alexa_device": speaker,
+                        "suppress_confirmation": "true",
+                    },
+                },
+                blocking=True,
+            )
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("Alexa emergency question via %s failed: %s", script, err)
+            return None
+        return speaker
+
+    async def _alexa_say(self, speaker: str, text: str) -> None:
+        try:
+            await self.hass.services.async_call(
+                "notify",
+                "alexa_media",
+                {"message": _NON_LATIN1.sub("", text), "target": [speaker], "data": {"type": "tts"}},
+                blocking=True,
+            )
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("Alexa confirmation failed: %s", err)
+
+    async def _after_ack(self, title: str, tag: str, by: str) -> None:
+        """Remove the emergency push everywhere and tell the others."""
+        t = self.texts
+        await self._clear_push(tag, self.persons)
+        if by == "Alexa":
+            info = t["acked_alexa"]
+        elif by:
+            info = t["acked"].format(who=by)
+        else:
+            info = t["acked_anon"]
+        for person in self.persons:
+            if by and self._person_name(person[CONF_PERSON]) == by:
+                continue
+            await self._notify_person(
+                person, title, info, _with_priority({"tag": f"{tag}_ack"})
+            )
+
+    @callback
+    def async_acknowledge(self, user_id: str | None = None) -> None:
+        """Acknowledge all running emergencies (button entity)."""
+        name = self._name_for_user(user_id)
+        for emergency in list(self._emergencies.values()):
+            emergency["ack"](name)
+
     # -------------------------------------------------------------------- ask
 
     def _detected_speaker(self, allowed: list[str] | None) -> str | None:
@@ -950,13 +1336,25 @@ class PresenceNotifyManager:
 
     # ----------------------------------------------------------- push/announce
 
-    async def _push(self, title: str, message: str, data: dict[str, Any]) -> None:
+    async def _push(
+        self,
+        title: str,
+        message: str,
+        data: dict[str, Any],
+        persons: list[dict[str, str]] | None = None,
+        raw: bool = False,
+    ) -> None:
+        """Push to the persons at home (or the given persons).
+
+        ``raw`` sends the data as given (priority already applied), otherwise
+        the general "high priority" setting decides.
+        """
         extras = data if isinstance(data, dict) else {}
-        if self.options.get(CONF_HIGH_PRIORITY, True):
-            payload_data = _with_priority(extras)
-        else:
+        if raw or not self.options.get(CONF_HIGH_PRIORITY, True):
             payload_data = extras
-        for person in self.persons_home():
+        else:
+            payload_data = _with_priority(extras)
+        for person in self.persons_home() if persons is None else persons:
             service = person.get(CONF_NOTIFY, "")
             domain, _, name = service.partition(".")
             if domain != "notify" or not name:
@@ -973,13 +1371,26 @@ class PresenceNotifyManager:
                 _LOGGER.error("Push via %s failed: %s", service, err)
 
     async def _announce_to(
-        self, speakers: list[str], text: str, ignore_quiet_hours: bool
+        self, speakers: list[str], text: str | dict[str, str], ignore_quiet_hours: bool
     ) -> None:
+        """Announce on the speakers.
+
+        ``text`` is plain text or {"plain": ..., "ssml": ...}; Alexa speakers
+        get the SSML version, other speakers the plain one.
+        """
         if not speakers:
             return
         if not ignore_quiet_hours and self.in_quiet_hours():
             _LOGGER.debug("Quiet hours, announcement skipped")
             return
+        if isinstance(text, dict):
+            plain, alexa_text, alexa_data = text["plain"], text["ssml"], {
+                "type": "announce",
+                "method": "speak",
+            }
+        else:
+            plain, alexa_text, alexa_data = text, text, {"type": "announce"}
+        text = plain
         ent_reg = er.async_get(self.hass)
         alexa = []
         other = []
@@ -996,9 +1407,9 @@ class PresenceNotifyManager:
                     "notify",
                     "alexa_media",
                     {
-                        "message": _NON_LATIN1.sub("", text).strip(),
+                        "message": _NON_LATIN1.sub("", alexa_text).strip(),
                         "target": alexa,
-                        "data": {"type": "announce"},
+                        "data": alexa_data,
                     },
                     blocking=True,
                 )

@@ -51,11 +51,13 @@
           "presence": "Presence entities",
           "return_room": "Return room",
           "add_another": "Add another room",
-          "hold_minutes": "Presence cooldown (minutes)"
+          "hold_minutes": "Presence cooldown (minutes)",
+          "emergency_volume_step": "Emergency volume boost"
         },
         "data_description": {
           "return_room": "After coming home, missed notifications are delivered as soon as motion is detected in one of the return rooms, on that room's speaker.",
-          "hold_minutes": "How long the room still counts as occupied after the last signal of its presence entities – for announcements and questions only, other automations are not affected. 0 = off: the room only counts as occupied while an entity is currently active (no extra cooldown). Handy for sensors whose cooldown cannot be adjusted. Note: this is added to the sensor's own cooldown (sensor 10 min + 5 min here = 15 min occupied) – it cannot shorten it. If the sensor's cooldown already fits, leave this at 0."
+          "hold_minutes": "How long the room still counts as occupied after the last signal of its presence entities – for announcements and questions only, other automations are not affected. 0 = off: the room only counts as occupied while an entity is currently active (no extra cooldown). Handy for sensors whose cooldown cannot be adjusted. Note: this is added to the sensor's own cooldown (sensor 10 min + 5 min here = 15 min occupied) – it cannot shorten it. If the sensor's cooldown already fits, leave this at 0.",
+          "emergency_volume_step": "Emergency notifications only: before the announcement the speaker is turned up by this many steps (Alexa scale 0–10, never above 10) and set back afterwards. Speakers differ a lot in loudness – e.g. a large speaker may already be very loud at 7, a small one still moderate at 10 – so set this per room. 0 = do not change the volume."
         }
       },
       "home_states": {
@@ -107,6 +109,8 @@
           "push_on_arrival": "Push the briefing right away when someone comes home",
           "home_entity": "Home source (optional)",
           "image_merge_seconds": "Merge repeated notifications with an image within",
+          "emergency_repeat_minutes": "Emergency: repeat every",
+          "emergency_repeat_max": "Emergency: maximum repetitions",
           "ask_alexa": "Alexa questions (experts only)",
           "pet_mode": "Pet mode (entry door first)"
         },
@@ -116,7 +120,10 @@
           "image_merge_seconds": "Every notification with an image (e.g. doorbell) keeps its own snapshot. Only an identical one within this time is merged (the same person ringing twice).",
           "ask_alexa": "Lets Alexa ask yes/no questions in the room where someone is detected. Only works if the Alexa skill \"Actionable Notifications\" and its script are already set up in Home Assistant. Recommended for experts only – see the guide: {docs_url}",
           "pet_mode": "Motion in a return room only counts after an entry door was opened. Prevents pets or a robot vacuum from triggering the briefing before you are in the room.",
-          "max_pending": "Notifications are only stored while nobody is home. Allowed: 1–100, default 20. Identical notifications take one slot and are counted (\"3 times\"). Notifications with an image take one slot each. When the store is full, the oldest notification is dropped."
+          "max_pending": "Notifications are only stored while nobody is home. Allowed: 1–100, default 20. Identical notifications take one slot and are counted (\"3 times\"). Notifications with an image take one slot each. When the store is full, the oldest notification is dropped.",
+          "high_priority_push": "Applies to normal notifications. Emergency, urgent and low notifications always use their own priority.",
+          "emergency_repeat_minutes": "Emergency notifications are repeated (push and announcement) until someone acknowledges them.",
+          "emergency_repeat_max": "How often an emergency is repeated after the first alert (0 = no repetition). It ends earlier when someone presses \"Seen\" in the push, answers yes to the Alexa question, presses the \"Acknowledge emergency\" button or the notification is removed with presence_notify.clear."
         }
       },
       "persons": {
@@ -142,10 +149,12 @@
           "speaker": "Speaker",
           "presence": "Presence entities",
           "return_room": "Return room",
-          "hold_minutes": "Presence cooldown (minutes)"
+          "hold_minutes": "Presence cooldown (minutes)",
+          "emergency_volume_step": "Emergency volume boost"
         },
         "data_description": {
-          "hold_minutes": "How long the room still counts as occupied after the last signal of its presence entities – for announcements and questions only, other automations are not affected. 0 = off: the room only counts as occupied while an entity is currently active (no extra cooldown). Handy for sensors whose cooldown cannot be adjusted. Note: this is added to the sensor's own cooldown (sensor 10 min + 5 min here = 15 min occupied) – it cannot shorten it. If the sensor's cooldown already fits, leave this at 0."
+          "hold_minutes": "How long the room still counts as occupied after the last signal of its presence entities – for announcements and questions only, other automations are not affected. 0 = off: the room only counts as occupied while an entity is currently active (no extra cooldown). Handy for sensors whose cooldown cannot be adjusted. Note: this is added to the sensor's own cooldown (sensor 10 min + 5 min here = 15 min occupied) – it cannot shorten it. If the sensor's cooldown already fits, leave this at 0.",
+          "emergency_volume_step": "Emergency notifications only: before the announcement the speaker is turned up by this many steps (Alexa scale 0–10, never above 10) and set back afterwards. Speakers differ a lot in loudness – e.g. a large speaker may already be very loud at 7, a small one still moderate at 10 – so set this per room. 0 = do not change the volume."
         }
       },
       "edit_room": {
@@ -161,10 +170,12 @@
           "speaker": "Speaker",
           "presence": "Presence entities",
           "return_room": "Return room",
-          "hold_minutes": "Presence cooldown (minutes)"
+          "hold_minutes": "Presence cooldown (minutes)",
+          "emergency_volume_step": "Emergency volume boost"
         },
         "data_description": {
-          "hold_minutes": "How long the room still counts as occupied after the last signal of its presence entities – for announcements and questions only, other automations are not affected. 0 = off: the room only counts as occupied while an entity is currently active (no extra cooldown). Handy for sensors whose cooldown cannot be adjusted. Note: this is added to the sensor's own cooldown (sensor 10 min + 5 min here = 15 min occupied) – it cannot shorten it. If the sensor's cooldown already fits, leave this at 0."
+          "hold_minutes": "How long the room still counts as occupied after the last signal of its presence entities – for announcements and questions only, other automations are not affected. 0 = off: the room only counts as occupied while an entity is currently active (no extra cooldown). Handy for sensors whose cooldown cannot be adjusted. Note: this is added to the sensor's own cooldown (sensor 10 min + 5 min here = 15 min occupied) – it cannot shorten it. If the sensor's cooldown already fits, leave this at 0.",
+          "emergency_volume_step": "Emergency notifications only: before the announcement the speaker is turned up by this many steps (Alexa scale 0–10, never above 10) and set back afterwards. Speakers differ a lot in loudness – e.g. a large speaker may already be very loud at 7, a small one still moderate at 10 – so set this per room. 0 = do not change the volume."
         }
       },
       "remove_room": {
@@ -217,6 +228,9 @@
       },
       "clear": {
         "name": "Clear stored notifications"
+      },
+      "acknowledge_emergency": {
+        "name": "Acknowledge emergency"
       }
     }
   },
@@ -228,7 +242,7 @@
   "services": {
     "send": {
       "name": "Send",
-      "description": "Push to everyone at home and announce on speakers in earshot. If nobody is home, the notification is stored.",
+      "description": "Push to everyone at home and announce on speakers in earshot. If nobody is home, the notification is stored. The priority changes this (see the field).",
       "fields": {
         "title": {
           "name": "Title",
@@ -250,6 +264,14 @@
           "name": "Ignore quiet hours",
           "description": "Announce even during quiet hours."
         },
+        "priority": {
+          "name": "Priority",
+          "description": "Emergency: always, on all channels, also at night and when nobody is home; all speakers, volume boost, repeated until acknowledged. Urgent: push to everyone right away, announcement (emphasized) only outside quiet hours. Normal: as before – stored when nobody is home. Low: push only and only when someone is home, otherwise dropped."
+        },
+        "tag": {
+          "name": "Tag",
+          "description": "Optional ID for this notification, e.g. balcony_door. A new notification with the same tag replaces the old one, presence_notify.clear with this tag removes it from all phones and from the stored notifications."
+        },
         "actions": {
           "name": "Action buttons",
           "description": "Buttons in the push. Without a link, pressing a button fires the event mobile_app_notification_action with the ID (generated from the title if empty, e.g. PN_OPEN_GARAGE). With a link, the button opens it."
@@ -269,6 +291,16 @@
     "clear_pending": {
       "name": "Clear stored notifications",
       "description": "Delete all stored notifications without delivering them."
+    },
+    "clear": {
+      "name": "Remove notification",
+      "description": "Removes a notification sent with a tag: deletes the push on all phones, removes it from the stored notifications (so it is not part of the briefing) and ends an emergency with this tag. Example: balcony door closed again.",
+      "fields": {
+        "tag": {
+          "name": "Tag",
+          "description": "Tag used when sending."
+        }
+      }
     },
     "ask": {
       "name": "Ask",
@@ -298,6 +330,16 @@
           "name": "Speakers",
           "description": "Only ask on these speakers."
         }
+      }
+    }
+  },
+  "selector": {
+    "priority": {
+      "options": {
+        "emergency": "Emergency",
+        "urgent": "Urgent",
+        "normal": "Normal",
+        "low": "Low"
       }
     }
   },

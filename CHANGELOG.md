@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0b1 (beta)
+- `presence_notify.send`: new field `priority` with four levels
+  - **Emergency:** push to everyone (Android alarm channel, iOS critical alert) with a "Seen" button, announcement on all speakers – also during quiet hours and when nobody is home – with the title emphasized. Each speaker is turned up by an adjustable step per room (new room setting, default 3, max. 10) and set back afterwards. Repeated every X minutes up to a maximum (new general settings, default 2 min / 5 times) until acknowledged: "Seen" in the push (the others are told who acknowledged), yes to Alexa's "Did you hear that?" (with Alexa questions), the new button entity "Acknowledge emergency", or `presence_notify.clear` with the same tag
+  - **Urgent:** push to everyone right away, also when nobody is home (high priority); announcement with emphasis, but not during quiet hours
+  - **Normal:** default, unchanged behavior
+  - **Low:** push only (Android normal priority, iOS passive), only when someone is home – otherwise dropped, not stored
+- `presence_notify.send`: new field `tag`. A stored notification with the same tag is replaced
+- New action `presence_notify.clear`: removes a tagged notification from all phones and from the stored notifications (not part of the briefing anymore) and ends an emergency with that tag
+- Alexa announcements with emphasis use SSML (`method: speak`); other speakers get plain text
+- The setting "Send push notifications with high priority" now applies to normal notifications only
+
 ## 0.3.2b1 (beta)
 - Rooms: the hold time field is now called "Presence cooldown (minutes)" and its description explains that 0 means off and that it adds to the sensor's own cooldown
 - General settings: "Maximum stored notifications" now explains the range (1–100, default 20), that identical notifications share one slot, that notifications with an image take one slot each and that the oldest is dropped when the store is full

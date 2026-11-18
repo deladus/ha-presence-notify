@@ -27,6 +27,22 @@ send:
       default: false
       selector:
         boolean:
+    priority:
+      required: false
+      default: normal
+      selector:
+        select:
+          translation_key: priority
+          options:
+            - emergency
+            - urgent
+            - normal
+            - low
+    tag:
+      required: false
+      example: "balcony_door"
+      selector:
+        text:
     actions:
       required: false
       selector:
@@ -59,6 +75,14 @@ deliver_pending:
           multiple: true
 
 clear_pending:
+
+clear:
+  fields:
+    tag:
+      required: true
+      example: "balcony_door"
+      selector:
+        text:
 
 ask:
   fields:

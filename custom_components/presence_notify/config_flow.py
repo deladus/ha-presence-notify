@@ -18,6 +18,9 @@ from homeassistant.helpers import selector
 from .const import (
     CONF_AI_TASK,
     CONF_DOOR_WINDOW,
+    CONF_EMERGENCY_INTERVAL,
+    CONF_EMERGENCY_REPEATS,
+    CONF_EMERGENCY_STEP,
     CONF_ENTRY_DOORS,
     CONF_PET_MODE,
     CONF_ASK_ALEXA,
@@ -43,6 +46,9 @@ from .const import (
     CONF_SPEAKER,
     CONF_TTS_ENTITY,
     DEFAULT_DOOR_WINDOW,
+    DEFAULT_EMERGENCY_INTERVAL,
+    DEFAULT_EMERGENCY_REPEATS,
+    DEFAULT_EMERGENCY_STEP,
     DEFAULT_IMAGE_MERGE_SECONDS,
     DEFAULT_MAX_PENDING,
     DEFAULT_QUIET_END,
@@ -103,6 +109,12 @@ def _general_schema(full: bool) -> vol.Schema:
                 vol.Required(CONF_IMAGE_MERGE_SECONDS, default=DEFAULT_IMAGE_MERGE_SECONDS): selector.NumberSelector(
                     selector.NumberSelectorConfig(min=0, max=600, unit_of_measurement="s", mode=selector.NumberSelectorMode.BOX)
                 ),
+                vol.Required(CONF_EMERGENCY_INTERVAL, default=DEFAULT_EMERGENCY_INTERVAL): selector.NumberSelector(
+                    selector.NumberSelectorConfig(min=1, max=60, unit_of_measurement="min", mode=selector.NumberSelectorMode.BOX)
+                ),
+                vol.Required(CONF_EMERGENCY_REPEATS, default=DEFAULT_EMERGENCY_REPEATS): selector.NumberSelector(
+                    selector.NumberSelectorConfig(min=0, max=20, mode=selector.NumberSelectorMode.BOX)
+                ),
             }
         )
     return vol.Schema(fields)
@@ -151,6 +163,9 @@ def _room_schema(
             selector.NumberSelectorConfig(
                 min=0, max=60, unit_of_measurement="min", mode=selector.NumberSelectorMode.BOX
             )
+        ),
+        vol.Required(CONF_EMERGENCY_STEP, default=DEFAULT_EMERGENCY_STEP): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=10, mode=selector.NumberSelectorMode.SLIDER)
         ),
     }
     if with_add_another:
@@ -216,6 +231,7 @@ def _clean_room(user_input: dict[str, Any]) -> dict[str, Any]:
         CONF_PRESENCE: list(user_input.get(CONF_PRESENCE) or []),
         CONF_RETURN_ROOM: bool(user_input.get(CONF_RETURN_ROOM)),
         CONF_HOLD: int(user_input.get(CONF_HOLD) or 0),
+        CONF_EMERGENCY_STEP: int(user_input.get(CONF_EMERGENCY_STEP, DEFAULT_EMERGENCY_STEP) or 0),
     }
 
 
@@ -380,6 +396,9 @@ class PresenceNotifyOptionsFlow(_PersonsMixin, OptionsFlow):
                 self._opts.pop(key, None)
             user_input[CONF_MAX_PENDING] = int(user_input[CONF_MAX_PENDING])
             user_input[CONF_IMAGE_MERGE_SECONDS] = int(user_input[CONF_IMAGE_MERGE_SECONDS])
+            for key in (CONF_EMERGENCY_INTERVAL, CONF_EMERGENCY_REPEATS):
+                if key in user_input:
+                    user_input[key] = int(user_input[key])
             self._opts.update(user_input)
             if user_input.get(CONF_HOME_ENTITY):
                 return await self.async_step_home_states()

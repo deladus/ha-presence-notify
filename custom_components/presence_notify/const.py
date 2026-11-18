@@ -19,6 +19,12 @@ CONF_PRESENCE = "presence"
 CONF_RETURN_ROOM = "return_room"
 CONF_HOLD = "hold_minutes"
 DEFAULT_HOLD = 0
+CONF_EMERGENCY_STEP = "emergency_volume_step"
+DEFAULT_EMERGENCY_STEP = 3
+CONF_EMERGENCY_INTERVAL = "emergency_repeat_minutes"
+DEFAULT_EMERGENCY_INTERVAL = 2
+CONF_EMERGENCY_REPEATS = "emergency_repeat_max"
+DEFAULT_EMERGENCY_REPEATS = 5
 CONF_QUIET_START = "quiet_start"
 CONF_QUIET_END = "quiet_end"
 CONF_AI_TASK = "ai_task_entity"
@@ -56,6 +62,7 @@ SERVICE_SEND = "send"
 SERVICE_DELIVER = "deliver_pending"
 SERVICE_CLEAR = "clear_pending"
 SERVICE_ASK = "ask"
+SERVICE_REMOVE = "clear"
 ATTR_QUESTION = "question"
 ATTR_TIMEOUT = "timeout"
 ATTR_TEXT_YES = "text_yes"
@@ -66,6 +73,14 @@ ATTR_DATA = "data"
 ATTR_SPEAKERS = "speakers"
 ATTR_IGNORE_QUIET = "ignore_quiet_hours"
 ATTR_ACTIONS = "actions"
+ATTR_PRIORITY = "priority"
+ATTR_TAG = "tag"
+
+PRIORITY_EMERGENCY = "emergency"
+PRIORITY_URGENT = "urgent"
+PRIORITY_NORMAL = "normal"
+PRIORITY_LOW = "low"
+PRIORITIES = [PRIORITY_EMERGENCY, PRIORITY_URGENT, PRIORITY_NORMAL, PRIORITY_LOW]
 ACTION_PREFIX = "PN_"
 
 EVENT_DELIVERED = f"{DOMAIN}_delivered"
@@ -79,3 +94,19 @@ HIGH_PRIORITY_DATA = {
     "importance": "high",
     "push": {"interruption-level": "time-sensitive"},
 }
+
+# Emergency: Android alarm channel (plays like an alarm, breaks through Do Not
+# Disturb), iOS critical alert (needs the critical alerts permission in the app)
+EMERGENCY_DATA = {
+    "priority": "high",
+    "ttl": 0,
+    "importance": "high",
+    "channel": "alarm_stream",
+    "push": {
+        "interruption-level": "critical",
+        "sound": {"name": "default", "critical": 1, "volume": 1.0},
+    },
+}
+
+# Low: normal Android priority, iOS passive (no sound, no screen wake-up)
+LOW_PRIORITY_DATA = {"push": {"interruption-level": "passive"}}

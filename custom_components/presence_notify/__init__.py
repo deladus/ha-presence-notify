@@ -17,17 +17,22 @@ from .const import (
     ATTR_DATA,
     ATTR_IGNORE_QUIET,
     ATTR_MESSAGE,
+    ATTR_PRIORITY,
     ATTR_QUESTION,
     ATTR_SPEAKERS,
+    ATTR_TAG,
     ATTR_TEXT_NO,
     ATTR_TEXT_YES,
     ATTR_TIMEOUT,
     ATTR_TITLE,
     DOMAIN,
     PLATFORMS,
+    PRIORITIES,
+    PRIORITY_NORMAL,
     SERVICE_ASK,
     SERVICE_CLEAR,
     SERVICE_DELIVER,
+    SERVICE_REMOVE,
     SERVICE_SEND,
 )
 from .manager import PresenceNotifyManager
@@ -43,6 +48,8 @@ SEND_SCHEMA = vol.Schema(
         vol.Optional(ATTR_DATA, default={}): vol.Any(dict, None),
         vol.Optional(ATTR_SPEAKERS): cv.entity_ids,
         vol.Optional(ATTR_IGNORE_QUIET, default=False): cv.boolean,
+        vol.Optional(ATTR_PRIORITY, default=PRIORITY_NORMAL): vol.In(PRIORITIES),
+        vol.Optional(ATTR_TAG): cv.string,
         vol.Optional(ATTR_ACTIONS): vol.All(
             cv.ensure_list,
             [
@@ -68,6 +75,7 @@ ASK_SCHEMA = vol.Schema(
     }
 )
 DELIVER_SCHEMA = vol.Schema({vol.Optional(ATTR_SPEAKERS): cv.entity_ids})
+REMOVE_SCHEMA = vol.Schema({vol.Required(ATTR_TAG): cv.string})
 
 
 def _manager(hass: HomeAssistant) -> PresenceNotifyManager:
@@ -91,6 +99,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             data.get(ATTR_SPEAKERS),
             data.get(ATTR_IGNORE_QUIET, False),
             data.get(ATTR_ACTIONS),
+            data.get(ATTR_PRIORITY, PRIORITY_NORMAL),
+            data.get(ATTR_TAG),
         )
 
     async def _deliver(call: ServiceCall) -> None:
@@ -104,6 +114,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         DOMAIN, SERVICE_DELIVER, _deliver, schema=DELIVER_SCHEMA
     )
     hass.services.async_register(DOMAIN, SERVICE_CLEAR, _clear)
+
+    async def _remove(call: ServiceCall) -> None:
+        await _manager(hass).async_remove(call.data[ATTR_TAG])
+
+    hass.services.async_register(DOMAIN, SERVICE_REMOVE, _remove, schema=REMOVE_SCHEMA)
 
     async def _ask(call: ServiceCall) -> ServiceResponse:
         data = call.data
