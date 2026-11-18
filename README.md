@@ -5,9 +5,9 @@
 *Heimischer Nachrichtendienst* · domain `presence_notify`
 
 > [!WARNING]
-> **Early beta (0.4.1b1).** This integration is at the very beginning of its development. Expect bugs, breaking changes to settings and actions, and missing features. Please don't rely on it for important notifications yet, and report problems via [Issues](https://github.com/deladus/ha-presence-notify/issues).
+> **Early beta (0.4.1b2).** This integration is at the very beginning of its development. Expect bugs, breaking changes to settings and actions, and missing features. Please don't rely on it for important notifications yet, and report problems via [Issues](https://github.com/deladus/ha-presence-notify/issues).
 >
-> **Frühe Beta (0.4.1b1).** Die Integration steht noch ganz am Anfang. Fehler, inkompatible Änderungen an Einstellungen und Aktionen sowie fehlende Funktionen sind zu erwarten. Bitte noch nicht für wichtige Benachrichtigungen verwenden. Probleme gern über [Issues](https://github.com/deladus/ha-presence-notify/issues) melden.
+> **Frühe Beta (0.4.1b2).** Die Integration steht noch ganz am Anfang. Fehler, inkompatible Änderungen an Einstellungen und Aktionen sowie fehlende Funktionen sind zu erwarten. Bitte noch nicht für wichtige Benachrichtigungen verwenden. Probleme gern über [Issues](https://github.com/deladus/ha-presence-notify/issues) melden.
 
 Notifications for Home Assistant that reach whoever is **at home and in earshot**, and don't get lost when nobody is home.
 
@@ -17,7 +17,7 @@ Notifications for Home Assistant that reach whoever is **at home and in earshot*
 
 One action, `presence_notify.send`, replaces your notification scripts:
 
-- **Someone is home:** push to every person who is home, and announce on the speakers of rooms where someone is detected. Rooms without sensors always get announcements. If nobody is detected anywhere, all speakers are used. No announcements during quiet hours.
+- **Someone is home:** push to every person who is home, and announce on the speakers of rooms where someone is detected. Rooms without sensors always get announcements. If nobody is detected anywhere, all speakers are used. With a speaker list (`speakers`), the fallback to all listed speakers only applies when nobody is detected anywhere in the house – if someone is in a room outside the list, empty listed rooms stay silent (push only). No announcements during quiet hours.
 - **Nobody is home:** the notification is **stored** (it survives restarts). Identical notifications are merged and counted ("3 times, first at 09:10"). Up to 20 notifications are kept by default (adjustable from 1 to 100 in the general settings). Identical ones take a single slot, notifications with an image take one slot each, and when the store is full the oldest one is dropped.
 - **Coming home:** The service waits until motion is detected in a **return room** (e.g. living room or kitchen) rather than using a fixed delay. Then the briefing is announced there, **as one briefing**, even during quiet hours. With an AI task entity (e.g. Google Gemini), several notifications are summarized into a natural announcement. Without one, a short list is read out.
 - The push with the briefing goes out **immediately on arrival** (optional: wait for motion instead).

@@ -432,7 +432,10 @@ class PresenceNotifyManager:
     def speakers_in_earshot(self, allowed: list[str] | None = None) -> list[str]:
         """Speakers of occupied rooms plus rooms without sensors.
 
-        Falls back to all speakers when nobody is detected anywhere.
+        Falls back to all (allowed) speakers only when nobody is detected
+        anywhere in the house. If someone is detected in a room that is not
+        in ``allowed``, only allowed rooms without sensors are announced
+        (possibly none: push only), so an empty room does not speak.
         """
         rooms = [
             r
@@ -449,6 +452,10 @@ class PresenceNotifyManager:
                 unsensed.append(room[CONF_SPEAKER])
         if detected:
             result = detected + unsensed
+        elif allowed is not None and any(
+            self._room_occupied(r) for r in self.rooms if r not in rooms
+        ):
+            result = unsensed
         else:
             result = [r[CONF_SPEAKER] for r in rooms]
         if allowed is not None:

@@ -1105,3 +1105,19 @@ async def test_ask_late_alexa_answer_after_push(hass: HomeAssistant, monkeypatch
                         {"event_id": script_calls[0].data["variables"]["event_id"], "event_response_type": "ResponseYes"})
     await hass.async_block_till_done()
     assert alexa[-1].data["message"] == "Thanks, it was already decided: no."
+
+
+
+async def test_speaker_list_no_fallback_when_someone_elsewhere(hass: HomeAssistant) -> None:
+    """Someone in a room outside the speaker list: empty listed rooms stay silent."""
+    _register_services(hass)
+    entry = await _setup(hass, home=True)
+    mgr = entry.runtime_data
+    hass.states.async_set("binary_sensor.wz", "on")  # living room, not in the list
+    # kitchen (sensor, empty) is skipped, bedroom (no sensor) still announced
+    assert mgr.speakers_in_earshot(["media_player.kueche", "media_player.schlaf"]) == ["media_player.schlaf"]
+    # only sensed, empty rooms listed: no announcement, push only
+    assert mgr.speakers_in_earshot(["media_player.kueche"]) == []
+    # nobody detected anywhere: fallback to the whole list as before
+    hass.states.async_set("binary_sensor.wz", "off")
+    assert mgr.speakers_in_earshot(["media_player.kueche"]) == ["media_player.kueche"]
