@@ -1,8 +1,5 @@
 # Changelog
 
-## 0.4.1b2 (beta)
-- Fix: with a speaker list (`speakers`), an empty room from the list (e.g. the bathroom) no longer speaks when someone is detected in a room outside the list. The fallback to all listed speakers now only applies when nobody is detected anywhere in the house; otherwise only listed rooms without presence sensors are announced, or none (push only)
-
 ## 0.4.1b1 (beta)
 - `presence_notify.send`: new field `store` – **only for priority normal**. Off: when nobody is home the notification is dropped instead of stored, so it is not part of the briefing after coming home (e.g. a dryer recommendation). Urgent, emergency and low notifications are never stored anyway
 - `presence_notify.send`: new field `remove_after` (minutes): the push is removed from all phones and the notification from the store after that time. Sending again with the same tag starts the time again, without a tag one is generated, survives restarts. Not for emergencies
