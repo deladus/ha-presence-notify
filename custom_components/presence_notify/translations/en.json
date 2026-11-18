@@ -115,7 +115,8 @@
           "home_entity": "E.g. a house mode select or an 'anyone home' sensor. If set, it decides whether someone is home; persons then only define who gets push notifications.",
           "image_merge_seconds": "Every notification with an image (e.g. doorbell) keeps its own snapshot. Only an identical one within this time is merged (the same person ringing twice).",
           "ask_alexa": "Lets Alexa ask yes/no questions in the room where someone is detected. Only works if the Alexa skill \"Actionable Notifications\" and its script are already set up in Home Assistant. Recommended for experts only – see the guide: {docs_url}",
-          "pet_mode": "Motion in a return room only counts after an entry door was opened. Prevents pets or a robot vacuum from triggering the briefing before you are in the room."
+          "pet_mode": "Motion in a return room only counts after an entry door was opened. Prevents pets or a robot vacuum from triggering the briefing before you are in the room.",
+          "max_pending": "Notifications are only stored while nobody is home. Allowed: 1–100, default 20. Identical notifications take one slot and are counted (\"3 times\"). Notifications with an image take one slot each. When the store is full, the oldest notification is dropped."
         }
       },
       "persons": {

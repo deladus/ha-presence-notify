@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2b1 (beta)
+- Rooms: the hold time field is now called "Presence cooldown (minutes)" and its description explains that 0 means off and that it adds to the sensor's own cooldown
+- General settings: "Maximum stored notifications" now explains the range (1–100, default 20), that identical notifications share one slot, that notifications with an image take one slot each and that the oldest is dropped when the store is full
+
 ## 0.3.1b1 (beta)
 - Rooms: optional presence cooldown – a room still counts as occupied for X minutes after its presence entities went off (announcements and questions only). Questions go to the room with the most recent detection
 - Rooms: `remote` entities (e.g. Harmony Hub) can be used as presence entities

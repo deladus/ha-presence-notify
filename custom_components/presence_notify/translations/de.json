@@ -115,7 +115,8 @@
           "home_entity": "Z. B. ein Hausmodus (Auswahlliste) oder ein Ist-jemand-zuhause-Sensor. Wenn gesetzt, entscheidet sie, ob jemand zu Hause ist; die Personen legen dann nur fest, wer Push bekommt.",
           "image_merge_seconds": "Jede Meldung mit Bild (z. B. Türklingel) behält ihren eigenen Schnappschuss. Nur eine gleiche Meldung innerhalb dieser Zeit wird zusammengefasst (dieselbe Person klingelt nochmal).",
           "ask_alexa": "Alexa kann Ja/Nein-Fragen in dem Raum stellen, in dem gerade jemand erkannt wird. Funktioniert nur, wenn der Alexa-Skill „Actionable Notifications“ samt Skript in Home Assistant bereits eingerichtet ist. Nur für Experten empfohlen – siehe Anleitung: {docs_url}",
-          "pet_mode": "Bewegung im Heimkehr-Raum zählt erst, nachdem eine Eingangstür geöffnet wurde. So lösen Haustiere oder ein Saugroboter das Briefing nicht aus, bevor ihr im Raum seid."
+          "pet_mode": "Bewegung im Heimkehr-Raum zählt erst, nachdem eine Eingangstür geöffnet wurde. So lösen Haustiere oder ein Saugroboter das Briefing nicht aus, bevor ihr im Raum seid.",
+          "max_pending": "Gespeichert wird nur, wenn niemand zu Hause ist. Erlaubt sind 1–100, Standard 20. Gleiche Meldungen belegen nur einen Platz und werden gezählt („3-mal“). Meldungen mit Bild belegen je einen eigenen Platz. Ist der Speicher voll, fällt die älteste Meldung weg."
         }
       },
       "persons": {

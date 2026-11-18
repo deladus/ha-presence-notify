@@ -18,7 +18,7 @@ Notifications for Home Assistant that reach whoever is **at home and in earshot*
 One action, `presence_notify.send`, replaces your notification scripts:
 
 - **Someone is home:** push to every person who is home, and announce on the speakers of rooms where someone is detected. Rooms without sensors always get announcements. If nobody is detected anywhere, all speakers are used. No announcements during quiet hours.
-- **Nobody is home:** the notification is **stored** (it survives restarts). Identical notifications are merged and counted ("3 times, first at 09:10").
+- **Nobody is home:** the notification is **stored** (it survives restarts). Identical notifications are merged and counted ("3 times, first at 09:10"). Up to 20 notifications are kept by default (adjustable from 1 to 100 in the general settings). Identical ones take a single slot, notifications with an image take one slot each, and when the store is full the oldest one is dropped.
 - **Coming home:** The service waits until motion is detected in a **return room** (e.g. living room or kitchen) rather than using a fixed delay. Then the briefing is announced there, **as one briefing**, even during quiet hours. With an AI task entity (e.g. Google Gemini), several notifications are summarized into a natural announcement. Without one, a short list is read out.
 - The push with the briefing goes out **immediately on arrival** (optional: wait for motion instead).
 - **Pet mode** (optional): motion only counts after an entry door was opened or unlocked, so pets or a robot vacuum don't trigger the briefing before you are in the room.
@@ -116,7 +116,7 @@ With **Send push notifications with high priority** (general settings, on by def
 
 ## Deutsch
 
-Der Heimische Nachrichtendienst schickt Benachrichtigungen an alle, die zu Hause sind (Push), und sagt sie auf den Lautsprechern in Hörweite an. Ist niemand da, werden sie gespeichert. Gleiche Meldungen werden dabei gezählt statt doppelt abgelegt. Nach der Heimkehr wartet die Integration auf die erste Bewegung in einem Heimkehr-Raum und spielt dort **ein** Briefing ab (der Push kommt schon bei der Ankunft), auf Wunsch per KI zusammengefasst und auch während der Ruhezeit. Einrichtung komplett über die Oberfläche, Oberfläche auf Deutsch und Englisch.
+Der Heimische Nachrichtendienst schickt Benachrichtigungen an alle, die zu Hause sind (Push), und sagt sie auf den Lautsprechern in Hörweite an. Ist niemand da, werden sie gespeichert. Gleiche Meldungen werden dabei gezählt statt doppelt abgelegt. Standardmäßig bleiben bis zu 20 Meldungen erhalten (einstellbar von 1 bis 100); gleiche Meldungen belegen nur einen Platz, Meldungen mit Bild je einen eigenen, und bei vollem Speicher fällt die älteste weg. Nach der Heimkehr wartet die Integration auf die erste Bewegung in einem Heimkehr-Raum und spielt dort **ein** Briefing ab (der Push kommt schon bei der Ankunft), auf Wunsch per KI zusammengefasst und auch während der Ruhezeit. Einrichtung komplett über die Oberfläche, Oberfläche auf Deutsch und Englisch.
 
 ## License
 
