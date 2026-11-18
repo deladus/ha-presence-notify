@@ -5,9 +5,9 @@
 *Heimischer Nachrichtendienst* · domain `presence_notify`
 
 > [!WARNING]
-> **Early beta (0.4.0b1).** This integration is at the very beginning of its development. Expect bugs, breaking changes to settings and actions, and missing features. Please don't rely on it for important notifications yet, and report problems via [Issues](https://github.com/deladus/ha-presence-notify/issues).
+> **Early beta (0.4.0b2).** This integration is at the very beginning of its development. Expect bugs, breaking changes to settings and actions, and missing features. Please don't rely on it for important notifications yet, and report problems via [Issues](https://github.com/deladus/ha-presence-notify/issues).
 >
-> **Frühe Beta (0.4.0b1).** Die Integration steht noch ganz am Anfang. Fehler, inkompatible Änderungen an Einstellungen und Aktionen sowie fehlende Funktionen sind zu erwarten. Bitte noch nicht für wichtige Benachrichtigungen verwenden. Probleme gern über [Issues](https://github.com/deladus/ha-presence-notify/issues) melden.
+> **Frühe Beta (0.4.0b2).** Die Integration steht noch ganz am Anfang. Fehler, inkompatible Änderungen an Einstellungen und Aktionen sowie fehlende Funktionen sind zu erwarten. Bitte noch nicht für wichtige Benachrichtigungen verwenden. Probleme gern über [Issues](https://github.com/deladus/ha-presence-notify/issues) melden.
 
 Notifications for Home Assistant that reach whoever is **at home and in earshot**, and don't get lost when nobody is home.
 
@@ -103,7 +103,7 @@ data:
 
 **Emergency** (e.g. a water leak):
 
-- **Volume:** before the announcement each speaker is turned up by the room's *Emergency volume boost* (Alexa scale 0–10, default 3, never above 10) and set back afterwards – unless someone changed the volume in the meantime. Speakers differ a lot (a large one may be very loud at 7, a small one still moderate at 10), so set the boost per room. Only speakers that report their volume can be raised.
+- **Volume:** before the announcement each speaker is turned up by the room's *Emergency volume boost* (Alexa scale 0–10, default 3, never above 10) and set back afterwards – unless someone changed the volume in the meantime. Speakers differ a lot (a large one may be very loud at 7, a small one still moderate at 10), so set the boost per room. Alexa speakers are turned up and down with a relative voice command ("volume up by 3"), because Alexa Media only reports the volume while a device is playing – so it works whatever the current volume is. If the volume is unknown and the speaker hits 10, it may end up slightly quieter than before. Other speakers must report their volume to be raised.
 - **Repetition:** push and announcement are repeated every *X minutes* up to a maximum number of repetitions (general settings, default every 2 minutes, 5 times).
 - **Acknowledge** – any of these ends it: the **Seen** button in the push (removes the push for everyone, the others get "X acknowledged the emergency"), answering **yes** to Alexa's "Did you hear that?" (only with Alexa questions enabled, asked in the room where someone is detected), the button entity **Acknowledge emergency** (dashboard, Alexa routine), or `presence_notify.clear` with the same tag (e.g. the leak sensor is dry again).
 - iOS critical alerts need the critical alerts permission in the Companion app.

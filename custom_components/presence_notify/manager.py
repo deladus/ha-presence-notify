@@ -96,6 +96,9 @@ ANNOUNCE_BASE_SECONDS = 4.0
 ANNOUNCE_SECONDS_PER_CHAR = 0.07
 ANNOUNCE_MAX_SECONDS = 60.0
 VOLUME_SETTLE_SECONDS = 1.0
+# Alexa Media only reports the volume while a device is playing, so Alexa
+# speakers are raised/lowered relatively with a text command (as if spoken)
+ALEXA_VOLUME_SETTLE_SECONDS = 3.0
 
 TEXTS = {
     "de": {
@@ -133,6 +136,8 @@ TEXTS = {
         "acked_anon": "Der Notfall wurde quittiert.",
         "heard": "Hast du das gehört?",
         "heard_ok": "Danke, ich habe quittiert.",
+        "vol_up": "Lautstärke um {n} erhöhen",
+        "vol_down": "Lautstärke um {n} verringern",
     },
     "en": {
         "yes": "Yes",
@@ -168,6 +173,8 @@ TEXTS = {
         "acked_anon": "The emergency was acknowledged.",
         "heard": "Did you hear that?",
         "heard_ok": "Thanks, acknowledged.",
+        "vol_up": "turn the volume up by {n}",
+        "vol_down": "turn the volume down by {n}",
     },
 }
 
@@ -928,48 +935,84 @@ class PresenceNotifyManager:
                 return int(room.get(CONF_EMERGENCY_STEP, DEFAULT_EMERGENCY_STEP) or 0)
         return 0
 
-    async def _raise_volume(self, speakers: list[str]) -> dict[str, tuple[float, float]]:
+    def _is_alexa(self, speaker: str) -> bool:
+        entry = er.async_get(self.hass).async_get(speaker)
+        return bool(entry and entry.platform == "alexa_media")
+
+    async def _alexa_command(self, speaker: str, text: str) -> None:
+        await self.hass.services.async_call(
+            "media_player",
+            "play_media",
+            {"entity_id": speaker, "media_content_type": "custom", "media_content_id": text},
+            blocking=True,
+        )
+
+    async def _raise_volume(self, speakers: list[str]) -> dict[str, dict[str, Any]]:
         """Raise each speaker by its room's step (Alexa scale 0–10, max 10).
 
-        Returns {speaker: (old, new)} for the speakers that were changed.
+        Alexa speakers get a relative text command ("volume up by 3"), so the
+        current volume does not need to be known. If it is known, the step is
+        limited to what fits below 10, so lowering it again is exact.
+        Other speakers are set absolutely and need a reported volume.
+        Returns {speaker: info} for the speakers that were changed.
         """
-        changed: dict[str, tuple[float, float]] = {}
+        changed: dict[str, dict[str, Any]] = {}
+        alexa_used = False
         for speaker in speakers:
             step = self._volume_step(speaker)
+            if step <= 0:
+                continue
             state = self.hass.states.get(speaker)
             old = state.attributes.get("volume_level") if state else None
-            if step <= 0 or old is None:
-                continue
-            new = round(min(1.0, float(old) + step / 10), 2)
-            if new <= float(old):
+            alexa = self._is_alexa(speaker)
+            if old is not None:
+                old_steps = round(float(old) * 10)
+                step = min(step, 10 - old_steps)
+                if step <= 0:
+                    continue
+            elif not alexa:
                 continue
             try:
-                await self.hass.services.async_call(
-                    "media_player",
-                    "volume_set",
-                    {"entity_id": speaker, "volume_level": new},
-                    blocking=True,
-                )
-                changed[speaker] = (float(old), new)
+                if alexa:
+                    await self._alexa_command(speaker, self.texts["vol_up"].format(n=step))
+                    alexa_used = True
+                    new = None if old is None else round(float(old) + step / 10, 2)
+                    changed[speaker] = {"alexa": True, "step": step, "new": new}
+                else:
+                    new = round(float(old) + step / 10, 2)
+                    await self.hass.services.async_call(
+                        "media_player",
+                        "volume_set",
+                        {"entity_id": speaker, "volume_level": new},
+                        blocking=True,
+                    )
+                    changed[speaker] = {"alexa": False, "old": float(old), "new": new}
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning("Raising the volume of %s failed: %s", speaker, err)
-        if changed and VOLUME_SETTLE_SECONDS:
-            await asyncio.sleep(VOLUME_SETTLE_SECONDS)
+        settle = ALEXA_VOLUME_SETTLE_SECONDS if alexa_used else VOLUME_SETTLE_SECONDS
+        if changed and settle:
+            await asyncio.sleep(settle)
         return changed
 
-    async def _restore_volume(self, changed: dict[str, tuple[float, float]]) -> None:
-        for speaker, (old, new) in changed.items():
+    async def _restore_volume(self, changed: dict[str, dict[str, Any]]) -> None:
+        for speaker, info in changed.items():
             state = self.hass.states.get(speaker)
             current = state.attributes.get("volume_level") if state else None
-            if current is not None and abs(float(current) - new) > 0.011:
+            new = info.get("new")
+            if current is not None and new is not None and abs(float(current) - new) > 0.011:
                 continue  # changed by hand in the meantime: leave it
             try:
-                await self.hass.services.async_call(
-                    "media_player",
-                    "volume_set",
-                    {"entity_id": speaker, "volume_level": old},
-                    blocking=True,
-                )
+                if info["alexa"]:
+                    await self._alexa_command(
+                        speaker, self.texts["vol_down"].format(n=info["step"])
+                    )
+                else:
+                    await self.hass.services.async_call(
+                        "media_player",
+                        "volume_set",
+                        {"entity_id": speaker, "volume_level": info["old"]},
+                        blocking=True,
+                    )
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning("Restoring the volume of %s failed: %s", speaker, err)
 

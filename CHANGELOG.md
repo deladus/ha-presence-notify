@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.0b2 (beta)
+- Emergency volume boost on Alexa speakers now uses a relative voice command ("volume up by 3" / "down by 3"). Alexa Media only reports the volume while a device is playing, so idle Echos were not raised before. If the volume is known, the step is limited to what fits below 10, so it is restored exactly
+
 ## 0.4.0b1 (beta)
 - `presence_notify.send`: new field `priority` with four levels
   - **Emergency:** push to everyone (Android alarm channel, iOS critical alert) with a "Seen" button, announcement on all speakers – also during quiet hours and when nobody is home – with the title emphasized. Each speaker is turned up by an adjustable step per room (new room setting, default 3, max. 10) and set back afterwards. Repeated every X minutes up to a maximum (new general settings, default 2 min / 5 times) until acknowledged: "Seen" in the push (the others are told who acknowledged), yes to Alexa's "Did you hear that?" (with Alexa questions), the new button entity "Acknowledge emergency", or `presence_notify.clear` with the same tag

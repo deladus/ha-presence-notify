@@ -643,6 +643,7 @@ def _fast_announce(monkeypatch) -> None:
     monkeypatch.setattr(m, "ANNOUNCE_BASE_SECONDS", 0)
     monkeypatch.setattr(m, "ANNOUNCE_SECONDS_PER_CHAR", 0)
     monkeypatch.setattr(m, "VOLUME_SETTLE_SECONDS", 0)
+    monkeypatch.setattr(m, "ALEXA_VOLUME_SETTLE_SECONDS", 0)
 
 
 def _register_volume(hass: HomeAssistant) -> list[ServiceCall]:
@@ -888,3 +889,39 @@ async def test_options_general_has_emergency_settings(hass: HomeAssistant) -> No
         "name": "Büro", "presence": [], "return_room": False, "emergency_volume_step": 5})
     await hass.async_block_till_done()
     assert entry.options["rooms"][-1]["emergency_volume_step"] == 5
+
+
+async def test_emergency_alexa_volume_relative(hass: HomeAssistant, monkeypatch) -> None:
+    """Alexa reports no volume while idle: raise/lower with a relative text command."""
+    _register_services(hass)
+    _register_alexa(hass)  # media_player.studio is an Alexa device
+    _fast_announce(monkeypatch)
+    commands: list[ServiceCall] = []
+
+    async def play_media(call):
+        commands.append(call)
+    hass.services.async_register("media_player", "play_media", play_media)
+    hass.states.async_set("media_player.studio", "idle", {})  # no volume_level
+    entry = await _setup(hass, home=True, emergency_repeat_max=0, emergency_repeat_minutes=0.001)
+    mgr = entry.runtime_data
+    changed = await mgr._raise_volume(["media_player.studio", "media_player.kueche"])
+    await mgr._restore_volume(changed)
+    assert [(c.data["entity_id"], c.data["media_content_type"], c.data["media_content_id"]) for c in commands] == [
+        ("media_player.studio", "custom", "turn the volume up by 3"),
+        ("media_player.studio", "custom", "turn the volume down by 3"),
+    ]  # kitchen (not Alexa, no volume) is left alone
+
+    # known volume 9: only one step fits below 10, lowered by the same step
+    commands.clear()
+    hass.states.async_set("media_player.studio", "playing", {"volume_level": 0.9})
+    changed = await mgr._raise_volume(["media_player.studio"])
+    hass.states.async_set("media_player.studio", "playing", {"volume_level": 1.0})
+    await mgr._restore_volume(changed)
+    assert [c.data["media_content_id"] for c in commands] == [
+        "turn the volume up by 1", "turn the volume down by 1"]
+
+    # already at 10: nothing to do
+    commands.clear()
+    hass.states.async_set("media_player.studio", "playing", {"volume_level": 1.0})
+    assert await mgr._raise_volume(["media_player.studio"]) == {}
+    assert commands == []
