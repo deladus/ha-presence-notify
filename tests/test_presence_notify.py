@@ -925,3 +925,32 @@ async def test_emergency_alexa_volume_relative(hass: HomeAssistant, monkeypatch)
     hass.states.async_set("media_player.studio", "playing", {"volume_level": 1.0})
     assert await mgr._raise_volume(["media_player.studio"]) == {}
     assert commands == []
+
+
+async def test_emergency_no_alexa_question_after_ack(hass: HomeAssistant, monkeypatch) -> None:
+    calls = _register_services(hass)
+    _fast_announce(monkeypatch)
+    script_calls = []
+
+    async def script_turn_on(call):
+        script_calls.append(call)
+    hass.services.async_register("script", "turn_on", script_turn_on)
+    entry = await _setup(hass, home=True, ask_alexa=True, ask_alexa_script="script.alexa_frage",
+                         emergency_repeat_max=5, emergency_repeat_minutes=0.02)
+    hass.states.async_set("binary_sensor.kueche", "on")
+    mgr = entry.runtime_data
+    original = mgr._raise_volume
+
+    async def ack_while_raising(speakers):
+        # "Seen" pressed while the first announcement is being prepared
+        action = _pushes(calls, "Leck")[0].data["data"]["actions"][0]["action"]
+        hass.bus.async_fire("mobile_app_notification_action", {"action": action})
+        await asyncio.sleep(0)
+        return await original(speakers)
+    monkeypatch.setattr(mgr, "_raise_volume", ack_while_raising)
+    await hass.services.async_call(DOMAIN, "send", {"title": "W", "message": "Leck", "priority": "emergency"}, blocking=True)
+    await asyncio.sleep(0.1)
+    await hass.async_block_till_done()
+    assert not mgr.emergency_active
+    assert script_calls == [] and calls["tts"] == []
+    assert len(_pushes(calls, "The emergency was acknowledged.")) == 2

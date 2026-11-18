@@ -1079,12 +1079,15 @@ class PresenceNotifyManager:
             targets = self._all_speakers(speakers)
             changed = await self._raise_volume(targets)
             text = self._ssml(title, message)
-            await self._announce_to(targets, text, True)
+            if not emergency["done"].is_set():
+                await self._announce_to(targets, text, True)
             if changed:
                 await asyncio.sleep(_announce_seconds(text["plain"]))
                 await self._restore_volume(changed)
-            if asked := await self._ask_heard(alexa_id, speakers):
-                emergency["alexa_speaker"] = asked
+            # acknowledged in the meantime (e.g. "Seen" in the push): no question
+            if not emergency["done"].is_set():
+                if asked := await self._ask_heard(alexa_id, speakers):
+                    emergency["alexa_speaker"] = asked
 
         async def _repeat() -> None:
             interval = float(

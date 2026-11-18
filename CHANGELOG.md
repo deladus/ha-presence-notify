@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.0b3 (beta)
+- Emergency: if it is acknowledged while the announcement is being prepared (e.g. "Seen" pressed right after the push), the announcement and Alexa's "Did you hear that?" are skipped
+
 ## 0.4.0b2 (beta)
 - Emergency volume boost on Alexa speakers now uses a relative voice command ("volume up by 3" / "down by 3"). Alexa Media only reports the volume while a device is playing, so idle Echos were not raised before. If the volume is known, the step is limited to what fits below 10, so it is restored exactly
 
