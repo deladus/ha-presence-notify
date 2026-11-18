@@ -272,6 +272,14 @@
           "name": "Tag",
           "description": "Optional ID for this notification, e.g. balcony_door. A new notification with the same tag replaces the old one, presence_notify.clear with this tag removes it from all phones and from the stored notifications."
         },
+        "store": {
+          "name": "Store when nobody is home (normal only)",
+          "description": "Only applies to priority Normal. Off: when nobody is home the notification is dropped instead of stored, so it does not come with the briefing after coming home – for notifications that only matter at that moment (e.g. a dryer recommendation). Urgent, emergency and low notifications are never stored anyway."
+        },
+        "remove_after": {
+          "name": "Remove automatically after",
+          "description": "Minutes after which the push is removed from all phones and the notification from the stored notifications (not part of the briefing anymore). Sending again with the same tag starts the time again. Without a tag, one is generated. Does not apply to emergencies."
+        },
         "actions": {
           "name": "Action buttons",
           "description": "Buttons in the push. Without a link, pressing a button fires the event mobile_app_notification_action with the ID (generated from the title if empty, e.g. PN_OPEN_GARAGE). With a link, the button opens it."

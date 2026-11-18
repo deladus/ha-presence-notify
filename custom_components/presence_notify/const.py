@@ -75,6 +75,8 @@ ATTR_IGNORE_QUIET = "ignore_quiet_hours"
 ATTR_ACTIONS = "actions"
 ATTR_PRIORITY = "priority"
 ATTR_TAG = "tag"
+ATTR_STORE = "store"
+ATTR_REMOVE_AFTER = "remove_after"
 
 PRIORITY_EMERGENCY = "emergency"
 PRIORITY_URGENT = "urgent"

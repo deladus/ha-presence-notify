@@ -43,6 +43,20 @@ send:
       example: "balcony_door"
       selector:
         text:
+    store:
+      required: false
+      default: true
+      selector:
+        boolean:
+    remove_after:
+      required: false
+      example: 15
+      selector:
+        number:
+          min: 1
+          max: 1440
+          unit_of_measurement: min
+          mode: box
     actions:
       required: false
       selector:

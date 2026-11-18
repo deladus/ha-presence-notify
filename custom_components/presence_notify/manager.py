@@ -99,6 +99,9 @@ VOLUME_SETTLE_SECONDS = 1.0
 # Alexa Media only reports the volume while a device is playing, so Alexa
 # speakers are raised/lowered relatively with a text command (as if spoken)
 ALEXA_VOLUME_SETTLE_SECONDS = 3.0
+# After a question was answered another way, Alexa still replies to a late
+# answer for this long after she asked
+ALEXA_LATE_SECONDS = 60.0
 
 TEXTS = {
     "de": {
@@ -136,6 +139,13 @@ TEXTS = {
         "acked_anon": "Der Notfall wurde quittiert.",
         "heard": "Hast du das gehört?",
         "heard_ok": "Danke, ich habe quittiert.",
+        "late_acked": "Danke, der Notfall wurde bereits von {who} quittiert.",
+        "late_acked_anon": "Danke, der Notfall wurde bereits quittiert.",
+        "late_fixed": "Danke, das Problem ist bereits behoben.",
+        "late_decided": "Danke, {who} hat bereits mit {result} entschieden.",
+        "late_decided_anon": "Danke, es wurde bereits mit {result} entschieden.",
+        "result_yes_cap": "Ja",
+        "result_no_cap": "Nein",
         "vol_up": "Lautstärke um {n} erhöhen",
         "vol_down": "Lautstärke um {n} verringern",
     },
@@ -173,6 +183,13 @@ TEXTS = {
         "acked_anon": "The emergency was acknowledged.",
         "heard": "Did you hear that?",
         "heard_ok": "Thanks, acknowledged.",
+        "late_acked": "Thanks, {who} already acknowledged the emergency.",
+        "late_acked_anon": "Thanks, the emergency was already acknowledged.",
+        "late_fixed": "Thanks, the problem is already solved.",
+        "late_decided": "Thanks, {who} already decided: {result}.",
+        "late_decided_anon": "Thanks, it was already decided: {result}.",
+        "result_yes_cap": "yes",
+        "result_no_cap": "no",
         "vol_up": "turn the volume up by {n}",
         "vol_down": "turn the volume down by {n}",
     },
@@ -266,6 +283,9 @@ class PresenceNotifyManager:
         self._last_door_open: datetime | None = None
         self._armed: bool = False
         self._emergencies: dict[str, dict[str, Any]] = {}
+        # tag -> due time (UTC timestamp) for "remove after X minutes"
+        self._expiries: dict[str, float] = {}
+        self._expiry_unsubs: dict[str, Callable[[], None]] = {}
 
     # ------------------------------------------------------------------ config
 
@@ -297,6 +317,11 @@ class PresenceNotifyManager:
         self.pending = stored.get("pending", [])
         last = stored.get("last_delivery")
         self.last_delivery = dt_util.parse_datetime(last) if last else None
+        self._expiries = {
+            str(tag): float(due) for tag, due in (stored.get("expiries") or {}).items()
+        }
+        for tag, due in list(self._expiries.items()):
+            self._schedule_expiry(tag, due)
 
         await self.hass.async_add_executor_job(self._cleanup_orphans)
         self._someone_home = self.someone_home()
@@ -325,6 +350,9 @@ class PresenceNotifyManager:
             if task := emergency.get("task"):
                 task.cancel()
         self._emergencies.clear()
+        for unsub in self._expiry_unsubs.values():
+            unsub()
+        self._expiry_unsubs.clear()
         for unsub in self._unsubs:
             unsub()
         self._unsubs.clear()
@@ -336,6 +364,7 @@ class PresenceNotifyManager:
                 "last_delivery": self.last_delivery.isoformat()
                 if self.last_delivery
                 else None,
+                "expiries": self._expiries,
             }
         )
         async_dispatcher_send(self.hass, SIGNAL_UPDATE)
@@ -450,6 +479,8 @@ class PresenceNotifyManager:
         actions: list[dict[str, str]] | None = None,
         priority: str = PRIORITY_NORMAL,
         tag: str | None = None,
+        store: bool = True,
+        remove_after: float | None = None,
     ) -> None:
         """Main entry point used by the presence_notify.send service.
 
@@ -459,22 +490,38 @@ class PresenceNotifyManager:
           is home (not during quiet hours)
         - normal: push/announce if someone is home, otherwise store
         - low: push only, and only if someone is home; otherwise dropped
+
+        ``store=False`` (normal only): dropped instead of stored when nobody
+        is home. ``remove_after`` (minutes, not for emergencies): the push is
+        removed from all phones and the message from the store after that time.
         """
         data = _with_actions(dict(data or {}), actions)
         tag = (tag or str(data.get("tag") or "")).strip() or None
-        if tag:
-            data["tag"] = tag
 
         if priority == PRIORITY_EMERGENCY:
+            if tag:
+                data["tag"] = tag
             await self._async_emergency(title, message, data, speakers, tag)
             return
 
+        if remove_after and not tag:
+            tag = f"{DOMAIN}_auto_{uuid.uuid4().hex[:10]}"
+        if tag:
+            data["tag"] = tag
+
         home = self.someone_home()
+        dropped = (
+            not home
+            and (priority == PRIORITY_LOW or (priority == PRIORITY_NORMAL and not store))
+        )
+        if dropped:
+            _LOGGER.debug("Nobody home, notification not stored: %s", title)
+            return
+        if remove_after:
+            await self._async_set_expiry(tag, float(remove_after))  # type: ignore[arg-type]
+
         if priority == PRIORITY_LOW:
-            if home:
-                await self._push(title, message, _merge_push(LOW_PRIORITY_DATA, data), raw=True)
-            else:
-                _LOGGER.debug("Nobody home, low priority notification dropped: %s", title)
+            await self._push(title, message, _merge_push(LOW_PRIORITY_DATA, data), raw=True)
             return
 
         if priority == PRIORITY_URGENT:
@@ -523,6 +570,10 @@ class PresenceNotifyManager:
         tag = tag.strip()
         if not tag:
             return
+        if self._expiries.pop(tag, None) is not None:
+            if unsub := self._expiry_unsubs.pop(tag, None):
+                unsub()
+            await self._async_save()
         for emergency in list(self._emergencies.values()):
             if emergency["tag"] == tag and not emergency["done"].is_set():
                 emergency["by"] = None
@@ -535,6 +586,29 @@ class PresenceNotifyManager:
                 self._stop_waiting()
             await self._async_save()
         await self._clear_push(tag, self.persons)
+
+    async def _async_set_expiry(self, tag: str, minutes: float) -> None:
+        """Remove the tagged notification after ``minutes`` (survives restarts).
+
+        Sending again with the same tag starts the time again.
+        """
+        due = dt_util.utcnow().timestamp() + minutes * 60
+        self._expiries[tag] = due
+        self._schedule_expiry(tag, due)
+        await self._async_save()
+
+    @callback
+    def _schedule_expiry(self, tag: str, due: float) -> None:
+        if unsub := self._expiry_unsubs.pop(tag, None):
+            unsub()
+
+        async def _expired(_now: Any) -> None:
+            self._expiry_unsubs.pop(tag, None)
+            if self._expiries.get(tag) == due:
+                await self.async_remove(tag)
+
+        delay = max(0.0, due - dt_util.utcnow().timestamp())
+        self._expiry_unsubs[tag] = async_call_later(self.hass, delay, _expired)
 
     async def _clear_push(self, tag: str, persons: list[dict[str, str]]) -> None:
         for person in persons:
@@ -1058,16 +1132,31 @@ class PresenceNotifyManager:
 
         @callback
         def _on_alexa(event: Event) -> None:
+            # "No" counts as no answer: the emergency goes on
             if (
-                event.data.get("event_id") == alexa_id
-                and event.data.get("event_response_type") == "ResponseYes"
+                event.data.get("event_id") != alexa_id
+                or event.data.get("event_response_type") != "ResponseYes"
             ):
+                return
+            if not emergency["done"].is_set():
                 _ack("Alexa")
+                return
+            # late "yes" after it was acknowledged or solved another way
+            speaker = emergency.get("alexa_speaker")
+            if not speaker or emergency["by"] == "Alexa":
+                return
+            if emergency["acked"]:
+                text = (
+                    t["late_acked"].format(who=emergency["by"])
+                    if emergency["by"]
+                    else t["late_acked_anon"]
+                )
+            else:
+                text = t["late_fixed"]
+            self.hass.async_create_task(self._alexa_say(speaker, text))
 
-        unsubs = [
-            self.hass.bus.async_listen("mobile_app_notification_action", _on_push),
-            self.hass.bus.async_listen("alexa_actionable_notification", _on_alexa),
-        ]
+        push_unsub = self.hass.bus.async_listen("mobile_app_notification_action", _on_push)
+        alexa_unsub = self.hass.bus.async_listen("alexa_actionable_notification", _on_alexa)
         self._emergencies[eid] = emergency
         async_dispatcher_send(self.hass, SIGNAL_UPDATE)
 
@@ -1088,6 +1177,7 @@ class PresenceNotifyManager:
             if not emergency["done"].is_set():
                 if asked := await self._ask_heard(alexa_id, speakers):
                     emergency["alexa_speaker"] = asked
+                    emergency["asked_at"] = self.hass.loop.time()
 
         async def _repeat() -> None:
             interval = float(
@@ -1112,8 +1202,8 @@ class PresenceNotifyManager:
                     except TimeoutError:
                         pass
             finally:
-                for unsub in unsubs:
-                    unsub()
+                push_unsub()
+                self._linger(alexa_unsub, emergency.get("asked_at"))
                 self._emergencies.pop(eid, None)
                 async_dispatcher_send(self.hass, SIGNAL_UPDATE)
             if emergency["acked"]:
@@ -1158,6 +1248,27 @@ class PresenceNotifyManager:
             _LOGGER.warning("Alexa emergency question via %s failed: %s", script, err)
             return None
         return speaker
+
+    @callback
+    def _linger(self, unsub: Callable[[], None], asked_at: float | None) -> None:
+        """Stop listening now, or ALEXA_LATE_SECONDS after Alexa asked."""
+        remaining = (
+            ALEXA_LATE_SECONDS - (self.hass.loop.time() - asked_at) if asked_at else 0
+        )
+        if remaining <= 0:
+            unsub()
+            return
+        done = False
+
+        def _once() -> None:
+            nonlocal done
+            if not done:
+                done = True
+                unsub()
+
+        handle = self.hass.loop.call_later(remaining, _once)
+        self._unsubs.append(handle.cancel)
+        self._unsubs.append(_once)
 
     async def _alexa_say(self, speaker: str, text: str) -> None:
         try:
@@ -1284,22 +1395,32 @@ class PresenceNotifyManager:
 
         @callback
         def _on_alexa(event: Event) -> None:
-            if answer.done() or event.data.get("event_id") != tag:
+            if event.data.get("event_id") != tag:
                 return
             kind = event.data.get("event_response_type")
-            if kind == "ResponseYes":
-                answer.set_result(("yes", "Alexa"))
-            elif kind == "ResponseNo":
-                answer.set_result(("no", "Alexa"))
+            if kind not in ("ResponseYes", "ResponseNo"):
+                return
+            if not answer.done():
+                answer.set_result(("yes" if kind == "ResponseYes" else "no", "Alexa"))
+                return
+            # late Alexa answer after someone decided by push
+            result, by = answer.result()
+            if result in ("yes", "no") and by != "Alexa" and alexa_speaker:
+                res = t["result_yes_cap"] if result == "yes" else t["result_no_cap"]
+                text = (
+                    t["late_decided"].format(who=by, result=res)
+                    if by
+                    else t["late_decided_anon"].format(result=res)
+                )
+                self.hass.async_create_task(self._alexa_say(alexa_speaker, text))
 
-        unsubs = [
-            self.hass.bus.async_listen("mobile_app_notification_action", _on_push),
-            self.hass.bus.async_listen("alexa_actionable_notification", _on_alexa),
-        ]
+        push_unsub = self.hass.bus.async_listen("mobile_app_notification_action", _on_push)
+        alexa_unsub = self.hass.bus.async_listen("alexa_actionable_notification", _on_alexa)
+        asked_at: float | None = None
+        alexa_speaker: str | None = None
 
         await _push_to(asked, question, can_forward)
 
-        alexa_speaker = None
         script = self.options.get(CONF_ASK_SCRIPT)
         if self.options.get(CONF_ASK_ALEXA) and script and home and not self.in_quiet_hours():
             alexa_speaker = self._detected_speaker(speakers)
@@ -1319,6 +1440,7 @@ class PresenceNotifyManager:
                         },
                         blocking=True,
                     )
+                    asked_at = self.hass.loop.time()
                 except Exception as err:  # noqa: BLE001
                     _LOGGER.warning("Alexa question via %s failed: %s", script, err)
                     alexa_speaker = None
@@ -1329,8 +1451,9 @@ class PresenceNotifyManager:
         except TimeoutError:
             result, by = "timeout", ""
         finally:
-            for unsub in unsubs:
-                unsub()
+            push_unsub()
+            # keep listening a little for a late Alexa answer (only if decided)
+            self._linger(alexa_unsub, asked_at if answer.done() else None)
 
         # remove the question everywhere
         for person in asked + forwarded_to:

@@ -954,3 +954,154 @@ async def test_emergency_no_alexa_question_after_ack(hass: HomeAssistant, monkey
     assert not mgr.emergency_active
     assert script_calls == [] and calls["tts"] == []
     assert len(_pushes(calls, "The emergency was acknowledged.")) == 2
+
+
+# ------------------------------------------------------------------ 0.4.1
+
+async def test_store_off_drops_normal_when_away(hass: HomeAssistant) -> None:
+    calls = _register_services(hass)
+    entry = await _setup(hass, home=False)
+    await hass.services.async_call(DOMAIN, "send", {"title": "Trockner", "message": "Jetzt starten?", "store": False}, blocking=True)
+    assert entry.runtime_data.pending == [] and calls["push"] == []
+    # urgent ignores the switch (never stored, always pushed)
+    await hass.services.async_call(DOMAIN, "send", {"title": "U", "message": "M", "priority": "urgent", "store": False}, blocking=True)
+    assert len(calls["push"]) == 2
+    # someone home: delivered normally
+    hass.states.async_set("person.dennis", "home")
+    await hass.async_block_till_done()
+    await hass.services.async_call(DOMAIN, "send", {"title": "Trockner", "message": "Jetzt", "store": False, "ignore_quiet_hours": True}, blocking=True)
+    assert len(_pushes(calls, "Jetzt")) == 1
+
+
+async def test_remove_after_clears_push_and_store(hass: HomeAssistant, freezer) -> None:
+    from datetime import timedelta
+    from pytest_homeassistant_custom_component.common import async_fire_time_changed
+    from homeassistant.util import dt as dt_util
+    calls = _register_services(hass)
+    entry = await _setup(hass, home=False)
+    await hass.services.async_call(DOMAIN, "send", {"title": "Trockner", "message": "Jetzt", "remove_after": 15}, blocking=True)
+    pending = entry.runtime_data.pending
+    assert len(pending) == 1 and pending[0]["tag"].startswith("presence_notify_auto_")
+    tag = pending[0]["tag"]
+    freezer.tick(timedelta(minutes=10))
+    # sent again with the same tag: time starts again
+    await hass.services.async_call(DOMAIN, "send", {"title": "Trockner", "message": "Jetzt", "tag": tag, "remove_after": 15}, blocking=True)
+    freezer.tick(timedelta(minutes=10))
+    async_fire_time_changed(hass, dt_util.utcnow())
+    await hass.async_block_till_done()
+    assert len(entry.runtime_data.pending) == 1
+    freezer.tick(timedelta(minutes=6))
+    async_fire_time_changed(hass, dt_util.utcnow())
+    await hass.async_block_till_done()
+    assert entry.runtime_data.pending == []
+    cleared = _pushes(calls, "clear_notification")
+    assert len(cleared) == 2 and cleared[0].data["data"]["tag"] == tag
+    assert entry.runtime_data._expiries == {}
+
+
+async def test_remove_after_survives_reload(hass: HomeAssistant, freezer) -> None:
+    from datetime import timedelta
+    from pytest_homeassistant_custom_component.common import async_fire_time_changed
+    from homeassistant.util import dt as dt_util
+    calls = _register_services(hass)
+    entry = await _setup(hass, home=True)
+    await hass.services.async_call(
+        DOMAIN, "send", {"title": "T", "message": "M", "tag": "x", "remove_after": 5, "ignore_quiet_hours": True}, blocking=True)
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert "x" in entry.runtime_data._expiries
+    freezer.tick(timedelta(minutes=6))
+    async_fire_time_changed(hass, dt_util.utcnow())
+    await hass.async_block_till_done()
+    assert len(_pushes(calls, "clear_notification")) == 2
+
+
+async def test_remove_after_ignored_for_emergency(hass: HomeAssistant, monkeypatch) -> None:
+    _register_services(hass)
+    _fast_announce(monkeypatch)
+    entry = await _setup(hass, home=True, emergency_repeat_max=0, emergency_repeat_minutes=0.01)
+    await hass.services.async_call(
+        DOMAIN, "send", {"title": "W", "message": "Leck", "priority": "emergency", "remove_after": 1}, blocking=True)
+    assert entry.runtime_data._expiries == {}
+    await asyncio.sleep(0.8)
+    await hass.async_block_till_done()
+
+
+async def test_emergency_alexa_no_is_no_answer_and_late_yes(hass: HomeAssistant, monkeypatch) -> None:
+    calls = _register_services(hass)
+    _fast_announce(monkeypatch)
+    alexa = _register_alexa(hass, "media_player.kueche")
+    script_calls = []
+
+    async def script_turn_on(call):
+        script_calls.append(call)
+    hass.services.async_register("script", "turn_on", script_turn_on)
+    entry = await _setup(hass, home=True, ask_alexa=True, ask_alexa_script="script.alexa_frage",
+                         emergency_repeat_max=5, emergency_repeat_minutes=0.05)
+    hass.states.async_set("binary_sensor.kueche", "on")
+    await hass.services.async_call(DOMAIN, "send", {"title": "W", "message": "Leck", "priority": "emergency"}, blocking=True)
+    await asyncio.sleep(0.05)
+    event_id = script_calls[0].data["variables"]["event_id"]
+    hass.bus.async_fire("alexa_actionable_notification", {"event_id": event_id, "event_response_type": "ResponseNo"})
+    await asyncio.sleep(0.02)
+    assert entry.runtime_data.emergency_active  # "no" = no answer
+    action = _pushes(calls, "Leck")[0].data["data"]["actions"][0]["action"]
+    hass.bus.async_fire("mobile_app_notification_action", {"action": action})
+    await asyncio.sleep(0.05)
+    await hass.async_block_till_done()
+    assert not entry.runtime_data.emergency_active
+    alexa.clear()
+    hass.bus.async_fire("alexa_actionable_notification", {"event_id": event_id, "event_response_type": "ResponseNo"})
+    await hass.async_block_till_done()
+    assert alexa == []  # late "no": nothing
+    hass.bus.async_fire("alexa_actionable_notification", {"event_id": event_id, "event_response_type": "ResponseYes"})
+    await hass.async_block_till_done()
+    assert alexa[-1].data["message"] == "Thanks, the emergency was already acknowledged."
+    assert alexa[-1].data["target"] == ["media_player.kueche"]
+
+
+async def test_emergency_late_yes_after_clear(hass: HomeAssistant, monkeypatch) -> None:
+    _register_services(hass)
+    _fast_announce(monkeypatch)
+    alexa = _register_alexa(hass, "media_player.kueche")
+    script_calls = []
+
+    async def script_turn_on(call):
+        script_calls.append(call)
+    hass.services.async_register("script", "turn_on", script_turn_on)
+    await _setup(hass, home=True, ask_alexa=True, ask_alexa_script="script.alexa_frage",
+                 emergency_repeat_max=5, emergency_repeat_minutes=0.05)
+    hass.states.async_set("binary_sensor.kueche", "on")
+    await hass.services.async_call(
+        DOMAIN, "send", {"title": "W", "message": "Leck", "priority": "emergency", "tag": "leck"}, blocking=True)
+    await asyncio.sleep(0.05)
+    event_id = script_calls[0].data["variables"]["event_id"]
+    await hass.services.async_call(DOMAIN, "clear", {"tag": "leck"}, blocking=True)
+    await asyncio.sleep(0.05)
+    await hass.async_block_till_done()
+    hass.bus.async_fire("alexa_actionable_notification", {"event_id": event_id, "event_response_type": "ResponseYes"})
+    await hass.async_block_till_done()
+    assert alexa[-1].data["message"] == "Thanks, the problem is already solved."
+
+
+async def test_ask_late_alexa_answer_after_push(hass: HomeAssistant, monkeypatch) -> None:
+    calls = _register_services(hass)
+    alexa = _register_alexa(hass, "media_player.kueche")
+    script_calls = []
+
+    async def script_turn_on(call):
+        script_calls.append(call)
+    hass.services.async_register("script", "turn_on", script_turn_on)
+    await _setup(hass, home=True, ask_alexa=True, ask_alexa_script="script.alexa_frage")
+    hass.states.async_set("binary_sensor.kueche", "on")
+    _quiet(monkeypatch, False)
+    task = await _ask_task(hass)
+    await asyncio.sleep(0.05)
+    question = next(c for c in calls["push"] if c.data.get("message") == "Starten?")
+    hass.bus.async_fire("mobile_app_notification_action", {"action": question.data["data"]["actions"][1]["action"]})
+    result = await task
+    assert result["answer"] == "no"
+    hass.bus.async_fire("alexa_actionable_notification",
+                        {"event_id": script_calls[0].data["variables"]["event_id"], "event_response_type": "ResponseYes"})
+    await hass.async_block_till_done()
+    assert alexa[-1].data["message"] == "Thanks, it was already decided: no."

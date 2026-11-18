@@ -5,9 +5,9 @@
 *Heimischer Nachrichtendienst* · domain `presence_notify`
 
 > [!WARNING]
-> **Early beta (0.4.0b3).** This integration is at the very beginning of its development. Expect bugs, breaking changes to settings and actions, and missing features. Please don't rely on it for important notifications yet, and report problems via [Issues](https://github.com/deladus/ha-presence-notify/issues).
+> **Early beta (0.4.1b1).** This integration is at the very beginning of its development. Expect bugs, breaking changes to settings and actions, and missing features. Please don't rely on it for important notifications yet, and report problems via [Issues](https://github.com/deladus/ha-presence-notify/issues).
 >
-> **Frühe Beta (0.4.0b3).** Die Integration steht noch ganz am Anfang. Fehler, inkompatible Änderungen an Einstellungen und Aktionen sowie fehlende Funktionen sind zu erwarten. Bitte noch nicht für wichtige Benachrichtigungen verwenden. Probleme gern über [Issues](https://github.com/deladus/ha-presence-notify/issues) melden.
+> **Frühe Beta (0.4.1b1).** Die Integration steht noch ganz am Anfang. Fehler, inkompatible Änderungen an Einstellungen und Aktionen sowie fehlende Funktionen sind zu erwarten. Bitte noch nicht für wichtige Benachrichtigungen verwenden. Probleme gern über [Issues](https://github.com/deladus/ha-presence-notify/issues) melden.
 
 Notifications for Home Assistant that reach whoever is **at home and in earshot**, and don't get lost when nobody is home.
 
@@ -61,7 +61,7 @@ You can try everything without touching your real setup:
 
 | Action | Purpose |
 |---|---|
-| `presence_notify.send` | `title`, `message`, optional `priority` (`emergency`/`urgent`/`normal`/`low`), `tag`, `data` (push extras such as `image`), `actions` (buttons, see below), `speakers` (limit to these), `ignore_quiet_hours` |
+| `presence_notify.send` | `title`, `message`, optional `priority` (`emergency`/`urgent`/`normal`/`low`), `tag`, `store` (normal only), `remove_after` (minutes), `data` (push extras such as `image`), `actions` (buttons, see below), `speakers` (limit to these), `ignore_quiet_hours` |
 | `presence_notify.clear` | `tag`: remove a tagged notification from all phones and from the stored notifications; ends an emergency with this tag |
 | `presence_notify.deliver_pending` | Deliver stored notifications now as one briefing |
 | `presence_notify.clear_pending` | Delete stored notifications |
@@ -106,6 +106,7 @@ data:
 - **Volume:** before the announcement each speaker is turned up by the room's *Emergency volume boost* (Alexa scale 0–10, default 3, never above 10) and set back afterwards – unless someone changed the volume in the meantime. Speakers differ a lot (a large one may be very loud at 7, a small one still moderate at 10), so set the boost per room. Alexa speakers are turned up and down with a relative voice command ("volume up by 3"), because Alexa Media only reports the volume while a device is playing – so it works whatever the current volume is. If the volume is unknown and the speaker hits 10, it may end up slightly quieter than before. Other speakers must report their volume to be raised.
 - **Repetition:** push and announcement are repeated every *X minutes* up to a maximum number of repetitions (general settings, default every 2 minutes, 5 times).
 - **Acknowledge** – any of these ends it: the **Seen** button in the push (removes the push for everyone, the others get "X acknowledged the emergency"), answering **yes** to Alexa's "Did you hear that?" (only with Alexa questions enabled, asked in the room where someone is detected), the button entity **Acknowledge emergency** (dashboard, Alexa routine), or `presence_notify.clear` with the same tag (e.g. the leak sensor is dry again).
+- If someone answers Alexa's question after the emergency was already acknowledged or solved, Alexa says so ("… already acknowledged by Dennis", "the problem is already solved"). "No" counts as no answer.
 - iOS critical alerts need the critical alerts permission in the Companion app.
 
 ```yaml
@@ -137,6 +138,20 @@ data:
 
 A new notification with the same tag replaces the stored one (identical ones are still counted).
 
+### Only relevant right now: `store` and `remove_after`
+
+- **`store: false`** – *only for priority normal.* When nobody is home, the notification is dropped instead of stored, so it does not come with the briefing after coming home. Useful for things that only matter at that moment, e.g. a dryer recommendation. Urgent, emergency and low notifications are never stored anyway, so the field has no effect there.
+- **`remove_after: 15`** – after 15 minutes the push is removed from all phones and the notification from the stored notifications. Sending again with the same tag starts the time again; without a tag one is generated. It survives a restart. Not for emergencies – they end only when acknowledged, cleared or after the last repetition.
+
+```yaml
+action: presence_notify.send
+data:
+  title: Dryer
+  message: Plenty of sun right now – start the dryer?
+  store: false
+  remove_after: 15
+```
+
 ## Alexa questions (experts only)
 
 `presence_notify.ask` always works by push with buttons. With the switch **Alexa questions (experts only)** in the general settings, Alexa also asks in the room where someone is detected. This needs the [Alexa Actionable Notifications](https://github.com/keatontaylor/alexa-actions) skill and its script – see the **[guide](docs/alexa-rueckfragen.md)** (German/English).
@@ -163,6 +178,8 @@ A new notification with the same tag replaces the stored one (identical ones are
 Der Heimische Nachrichtendienst schickt Benachrichtigungen an alle, die zu Hause sind (Push), und sagt sie auf den Lautsprechern in Hörweite an. Ist niemand da, werden sie gespeichert. Gleiche Meldungen werden dabei gezählt statt doppelt abgelegt. Standardmäßig bleiben bis zu 20 Meldungen erhalten (einstellbar von 1 bis 100); gleiche Meldungen belegen nur einen Platz, Meldungen mit Bild je einen eigenen, und bei vollem Speicher fällt die älteste weg. Nach der Heimkehr wartet die Integration auf die erste Bewegung in einem Heimkehr-Raum und spielt dort **ein** Briefing ab (der Push kommt schon bei der Ankunft), auf Wunsch per KI zusammengefasst und auch während der Ruhezeit. Einrichtung komplett über die Oberfläche, Oberfläche auf Deutsch und Englisch.
 
 **Prioritäten** (`priority`): *Notfall* kommt immer – Push an alle (Android-Alarmkanal, iOS kritisch), Ansage auf allen Lautsprechern auch nachts und ohne Anwesenheit, vorher pro Raum um einstellbar viele Stufen lauter (danach zurück), Wiederholung bis jemand quittiert (Knopf „Gesehen“, Alexa-Frage „Hast du das gehört?“, Schaltfläche „Notfall quittieren“ oder `presence_notify.clear`). *Dringend*: sofort Push an alle, betonte Ansage, aber nicht in der Ruhezeit. *Normal*: wie bisher. *Niedrig*: nur Push und nur wenn jemand zu Hause ist, sonst verworfen.
+
+**Nur im Moment wichtig:** `store: false` (gilt **nur für die Priorität Normal**) verwirft eine Nachricht, wenn niemand zu Hause ist, statt sie fürs Briefing zu speichern – z. B. für eine Trocknerempfehlung. `remove_after: 15` entfernt Push und gespeicherte Nachricht nach 15 Minuten automatisch (nicht bei Notfällen).
 
 **Automatisch entfernen:** Mit `tag` senden, später `presence_notify.clear` mit derselben Kennung – der Push verschwindet von allen Handys und die Meldung aus dem Speicher (z. B. „Balkontür offen“ → Tür zu).
 

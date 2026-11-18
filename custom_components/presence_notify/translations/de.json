@@ -272,6 +272,14 @@
           "name": "Kennung",
           "description": "Optionale Kennung dieser Nachricht, z. B. balkontuer. Eine neue Nachricht mit derselben Kennung ersetzt die alte, presence_notify.clear mit dieser Kennung entfernt sie von allen Handys und aus den gespeicherten Nachrichten."
         },
+        "store": {
+          "name": "Speichern, wenn niemand zu Hause ist (nur Normal)",
+          "description": "Gilt nur für die Priorität Normal. Aus: Ist niemand zu Hause, wird die Nachricht verworfen statt gespeichert und kommt nicht mit dem Briefing nach der Heimkehr – für Nachrichten, die nur im Moment interessant sind (z. B. eine Trocknerempfehlung). Dringend, Notfall und Niedrig werden ohnehin nie gespeichert."
+        },
+        "remove_after": {
+          "name": "Automatisch entfernen nach",
+          "description": "Minuten, nach denen der Push von allen Handys und die Nachricht aus den gespeicherten Nachrichten entfernt wird (kommt dann nicht mehr ins Briefing). Erneutes Senden mit derselben Kennung startet die Zeit neu. Ohne Kennung wird eine erzeugt. Gilt nicht für Notfälle."
+        },
         "actions": {
           "name": "Aktionsknöpfe",
           "description": "Knöpfe im Push. Ohne Link löst ein Knopf das Ereignis mobile_app_notification_action mit der Kennung aus (leer = aus dem Titel gebildet, z. B. PN_GARAGE_OFFNEN). Mit Link öffnet der Knopf ihn."
