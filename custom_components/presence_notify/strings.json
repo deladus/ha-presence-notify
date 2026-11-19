@@ -280,6 +280,18 @@
           "name": "Remove automatically after",
           "description": "Minutes after which the push is removed from all phones and the notification from the stored notifications (not part of the briefing anymore). Sending again with the same tag starts the time again. Without a tag, one is generated. Does not apply to emergencies."
         },
+        "push_to": {
+          "name": "Push to",
+          "description": "Who gets the push. Empty = depending on the priority (urgent: everyone, normal/low: only the persons at home). All: everyone. Present: only the persons at home. Absent: only the persons away – e.g. doorbell: announcement for those at home, push for those away. With Absent and nobody home, a normal notification is pushed to everyone (and stored only if 'Store' is on). Does not apply to emergencies (always everyone)."
+        },
+        "recipients": {
+          "name": "Recipients",
+          "description": "Only push to these persons (must be set up in the integration). Combined with 'Push to', e.g. only Dennis and only if he is away. Empty = all persons. Announcements are not affected (they depend on the rooms). Does not apply to emergencies."
+        },
+        "announcement": {
+          "name": "Announcement text",
+          "description": "Separate text for the speakers, e.g. short 'Someone rang the doorbell' while the push says more. Empty = 'Title: Message'. Not used for the briefing of stored notifications."
+        },
         "actions": {
           "name": "Action buttons",
           "description": "Buttons in the push. Without a link, pressing a button fires the event mobile_app_notification_action with the ID (generated from the title if empty, e.g. PN_OPEN_GARAGE). With a link, the button opens it."
@@ -348,6 +360,13 @@
         "urgent": "Urgent",
         "normal": "Normal",
         "low": "Low"
+      }
+    },
+    "push_to": {
+      "options": {
+        "all": "Everyone",
+        "present": "Present only",
+        "absent": "Absent only"
       }
     }
   },

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.2b1 (beta)
+- `presence_notify.send`: new field `push_to` – `all`, `present` or `absent`. Without it the priority decides as before (urgent: everyone, normal/low: persons at home). E.g. doorbell: announcement for those at home, push only for those away. Normal with `absent`/`all` while nobody is home: everyone gets the push, stored only if `store` is on
+- `presence_notify.send`: new field `recipients` – push only to these persons (combined with `push_to`). Announcements still depend on the rooms
+- `presence_notify.send`: new field `announcement` – separate text for the speakers instead of "Title: Message" (emphasized as a whole for urgent and emergency)
+- Emergencies ignore `push_to` and `recipients` and always reach everyone
+
 ## 0.4.1b1 (beta)
 - `presence_notify.send`: new field `store` – **only for priority normal**. Off: when nobody is home the notification is dropped instead of stored, so it is not part of the briefing after coming home (e.g. a dryer recommendation). Urgent, emergency and low notifications are never stored anyway
 - `presence_notify.send`: new field `remove_after` (minutes): the push is removed from all phones and the notification from the store after that time. Sending again with the same tag starts the time again, without a tag one is generated, survives restarts. Not for emergencies

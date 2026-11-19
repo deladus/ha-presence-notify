@@ -14,11 +14,14 @@ from homeassistant.helpers.typing import ConfigType
 
 from .const import (
     ATTR_ACTIONS,
+    ATTR_ANNOUNCEMENT,
     ATTR_DATA,
     ATTR_IGNORE_QUIET,
     ATTR_MESSAGE,
     ATTR_PRIORITY,
+    ATTR_PUSH_TO,
     ATTR_QUESTION,
+    ATTR_RECIPIENTS,
     ATTR_REMOVE_AFTER,
     ATTR_SPEAKERS,
     ATTR_STORE,
@@ -31,6 +34,7 @@ from .const import (
     PLATFORMS,
     PRIORITIES,
     PRIORITY_NORMAL,
+    PUSH_TO_OPTIONS,
     SERVICE_ASK,
     SERVICE_CLEAR,
     SERVICE_DELIVER,
@@ -54,6 +58,9 @@ SEND_SCHEMA = vol.Schema(
         vol.Optional(ATTR_TAG): cv.string,
         vol.Optional(ATTR_STORE, default=True): cv.boolean,
         vol.Optional(ATTR_REMOVE_AFTER): vol.All(vol.Coerce(float), vol.Range(min=0.05, max=1440)),
+        vol.Optional(ATTR_PUSH_TO): vol.In(PUSH_TO_OPTIONS),
+        vol.Optional(ATTR_RECIPIENTS): cv.entity_ids,
+        vol.Optional(ATTR_ANNOUNCEMENT): cv.string,
         vol.Optional(ATTR_ACTIONS): vol.All(
             cv.ensure_list,
             [
@@ -107,6 +114,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             data.get(ATTR_TAG),
             data.get(ATTR_STORE, True),
             data.get(ATTR_REMOVE_AFTER),
+            data.get(ATTR_PUSH_TO),
+            data.get(ATTR_RECIPIENTS),
+            data.get(ATTR_ANNOUNCEMENT),
         )
 
     async def _deliver(call: ServiceCall) -> None:

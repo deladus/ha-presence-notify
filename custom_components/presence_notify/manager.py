@@ -80,6 +80,9 @@ from .const import (
     PRIORITY_LOW,
     PRIORITY_NORMAL,
     PRIORITY_URGENT,
+    PUSH_TO_ABSENT,
+    PUSH_TO_ALL,
+    PUSH_TO_PRESENT,
     SIGNAL_UPDATE,
     STORAGE_KEY,
     STORAGE_VERSION,
@@ -481,6 +484,9 @@ class PresenceNotifyManager:
         tag: str | None = None,
         store: bool = True,
         remove_after: float | None = None,
+        push_to: str | None = None,
+        recipients: list[str] | None = None,
+        announcement: str | None = None,
     ) -> None:
         """Main entry point used by the presence_notify.send service.
 
@@ -494,14 +500,18 @@ class PresenceNotifyManager:
         ``store=False`` (normal only): dropped instead of stored when nobody
         is home. ``remove_after`` (minutes, not for emergencies): the push is
         removed from all phones and the message from the store after that time.
+        ``push_to`` (all/present/absent) and ``recipients`` (person entities)
+        decide who gets the push (not for emergencies); announcements stay
+        room based. ``announcement`` replaces "title: message" on the speakers.
         """
         data = _with_actions(dict(data or {}), actions)
         tag = (tag or str(data.get("tag") or "")).strip() or None
+        announcement = (announcement or "").strip() or None
 
         if priority == PRIORITY_EMERGENCY:
             if tag:
                 data["tag"] = tag
-            await self._async_emergency(title, message, data, speakers, tag)
+            await self._async_emergency(title, message, data, speakers, tag, announcement)
             return
 
         if remove_after and not tag:
@@ -510,29 +520,42 @@ class PresenceNotifyManager:
             data["tag"] = tag
 
         home = self.someone_home()
-        dropped = (
-            not home
-            and (priority == PRIORITY_LOW or (priority == PRIORITY_NORMAL and not store))
+        if not home and priority == PRIORITY_LOW:
+            _LOGGER.debug("Nobody home, low priority notification dropped: %s", title)
+            return
+        # Normal, nobody home: pushed only if push_to asks for the absent
+        # (or all) explicitly; otherwise stored (or dropped with store=False).
+        away_push = (
+            priority == PRIORITY_NORMAL
+            and not home
+            and push_to in (PUSH_TO_ALL, PUSH_TO_ABSENT)
         )
-        if dropped:
+        if priority == PRIORITY_NORMAL and not home and not store and not away_push:
             _LOGGER.debug("Nobody home, notification not stored: %s", title)
             return
         if remove_after:
             await self._async_set_expiry(tag, float(remove_after))  # type: ignore[arg-type]
 
+        targets = self._push_targets(priority, push_to, recipients)
+
         if priority == PRIORITY_LOW:
-            await self._push(title, message, _merge_push(LOW_PRIORITY_DATA, data), raw=True)
+            if targets:
+                await self._push(
+                    title, message, _merge_push(LOW_PRIORITY_DATA, data), persons=targets, raw=True
+                )
             return
 
         if priority == PRIORITY_URGENT:
-            jobs = [
-                self._push(title, message, _with_priority(data), persons=self.persons, raw=True)
-            ]
+            jobs = []
+            if targets:
+                jobs.append(
+                    self._push(title, message, _with_priority(data), persons=targets, raw=True)
+                )
             if home:
                 jobs.append(
                     self._announce_to(
                         self.speakers_in_earshot(speakers),
-                        self._ssml(title, message),
+                        self._ssml(title, message, announcement),
                         ignore_quiet_hours,
                     )
                 )
@@ -540,20 +563,58 @@ class PresenceNotifyManager:
             return
 
         if not home:
-            await self.async_store(title, message, data, tag)
+            if away_push and targets:
+                await self._push(title, message, data, persons=targets)
+            if store:
+                await self.async_store(title, message, data, tag)
             return
-        await asyncio.gather(
-            self._push(title, message, data),
+        jobs = [
             self._announce_to(
                 self.speakers_in_earshot(speakers),
-                f"{title}: {message}",
+                announcement or f"{title}: {message}",
                 ignore_quiet_hours,
-            ),
-        )
+            )
+        ]
+        if targets:
+            jobs.append(self._push(title, message, data, persons=targets))
+        await asyncio.gather(*jobs)
+
+    def _push_targets(
+        self, priority: str, push_to: str | None, recipients: list[str] | None
+    ) -> list[dict[str, str]]:
+        """Persons who get the push of a send call.
+
+        Default: urgent to everyone, normal/low to the persons at home.
+        ``recipients`` narrows the result down to these person entities.
+        """
+        mode = push_to or (PUSH_TO_ALL if priority == PRIORITY_URGENT else PUSH_TO_PRESENT)
+        if mode == PUSH_TO_ALL:
+            persons = list(self.persons)
+        else:
+            home = self.persons_home()
+            if mode == PUSH_TO_PRESENT:
+                persons = home
+            else:
+                persons = [p for p in self.persons if p not in home]
+        if recipients:
+            wanted = set(recipients)
+            known = {p[CONF_PERSON] for p in self.persons}
+            for unknown in wanted - known:
+                _LOGGER.warning("Recipient %s is not set up in the integration", unknown)
+            persons = [p for p in persons if p[CONF_PERSON] in wanted]
+        return persons
 
     @staticmethod
-    def _ssml(title: str, message: str) -> dict[str, str]:
-        """Announcement with the title emphasized on Alexa, plain text elsewhere."""
+    def _ssml(title: str, message: str, announcement: str | None = None) -> dict[str, str]:
+        """Announcement with the title emphasized on Alexa, plain text elsewhere.
+
+        A separate announcement text is emphasized as a whole.
+        """
+        if announcement:
+            return {
+                "plain": announcement,
+                "ssml": f"<emphasis level='strong'>{_escape_ssml(announcement)}</emphasis>",
+            }
         plain = f"{title}: {message}"
         ssml = (
             f"<emphasis level='strong'>{_escape_ssml(title)}</emphasis>: "
@@ -1097,6 +1158,7 @@ class PresenceNotifyManager:
         data: dict[str, Any],
         speakers: list[str] | None,
         tag: str | None,
+        announcement: str | None = None,
     ) -> None:
         """Push right away; announcement and repetitions in the background."""
         t = self.texts
@@ -1167,7 +1229,7 @@ class PresenceNotifyManager:
                 return
             targets = self._all_speakers(speakers)
             changed = await self._raise_volume(targets)
-            text = self._ssml(title, message)
+            text = self._ssml(title, message, announcement)
             if not emergency["done"].is_set():
                 await self._announce_to(targets, text, True)
             if changed:

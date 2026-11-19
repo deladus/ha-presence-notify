@@ -1105,3 +1105,132 @@ async def test_ask_late_alexa_answer_after_push(hass: HomeAssistant, monkeypatch
                         {"event_id": script_calls[0].data["variables"]["event_id"], "event_response_type": "ResponseYes"})
     await hass.async_block_till_done()
     assert alexa[-1].data["message"] == "Thanks, it was already decided: no."
+
+
+def _push_services(calls, message: str) -> list[str]:
+    return sorted(c.service for c in _pushes(calls, message))
+
+
+async def test_push_to_absent_announces_for_present(hass: HomeAssistant, monkeypatch) -> None:
+    calls = _register_services(hass)
+    entry = await _setup(hass, home=True)
+    _quiet(monkeypatch, False)
+    hass.states.async_set("person.christos", "not_home")
+    hass.states.async_set("binary_sensor.wz", "on")
+    await hass.async_block_till_done()
+    await hass.services.async_call(DOMAIN, "send", {
+        "title": "Haustür", "message": "Jemand steht vor der Tür", "push_to": "absent",
+        "announcement": "Es hat geklingelt"}, blocking=True)
+    assert _push_services(calls, "Jemand steht vor der Tür") == ["christos_alle_geraete"]
+    assert [c.data["message"] for c in calls["tts"]] == ["Es hat geklingelt"] * len(calls["tts"])
+    assert calls["tts"]
+
+    # everyone at home: no push at all, only the announcement
+    hass.states.async_set("person.christos", "home")
+    await hass.async_block_till_done()
+    await hass.services.async_call(DOMAIN, "send", {
+        "title": "Haustür", "message": "zweimal", "push_to": "absent"}, blocking=True)
+    assert _pushes(calls, "zweimal") == []
+    assert calls["tts"][-1].data["message"] == "Haustür: zweimal"
+    assert entry.runtime_data.pending == []
+
+
+async def test_push_to_absent_when_nobody_home(hass: HomeAssistant) -> None:
+    calls = _register_services(hass)
+    entry = await _setup(hass, home=False)
+    await hass.services.async_call(DOMAIN, "send", {
+        "title": "Haustür", "message": "weg", "push_to": "absent", "store": False}, blocking=True)
+    assert _push_services(calls, "weg") == ["christos_alle_geraete", "dennis_alle_geraete"]
+    assert entry.runtime_data.pending == [] and calls["tts"] == []
+
+    # store on: pushed and stored for the briefing
+    await hass.services.async_call(DOMAIN, "send", {
+        "title": "Haustür", "message": "weg2", "push_to": "absent"}, blocking=True)
+    assert len(_pushes(calls, "weg2")) == 2 and len(entry.runtime_data.pending) == 1
+
+    # default (no push_to): stored only, as before
+    await hass.services.async_call(DOMAIN, "send", {"title": "Post", "message": "da"}, blocking=True)
+    assert _pushes(calls, "da") == [] and len(entry.runtime_data.pending) == 2
+
+
+async def test_push_to_present_for_urgent(hass: HomeAssistant, monkeypatch) -> None:
+    calls = _register_services(hass)
+    await _setup(hass, home=True)
+    _quiet(monkeypatch, True)
+    hass.states.async_set("person.christos", "not_home")
+    await hass.async_block_till_done()
+    await hass.services.async_call(DOMAIN, "send", {
+        "title": "A", "message": "nur hier", "priority": "urgent", "push_to": "present"}, blocking=True)
+    assert _push_services(calls, "nur hier") == ["dennis_alle_geraete"]
+    data = _pushes(calls, "nur hier")[0].data["data"]
+    assert data["priority"] == "high"
+
+
+async def test_recipients_narrow_down_push(hass: HomeAssistant, monkeypatch) -> None:
+    calls = _register_services(hass)
+    await _setup(hass, home=False)
+    await hass.services.async_call(DOMAIN, "send", {
+        "title": "Test", "message": "nur Dennis", "priority": "urgent",
+        "recipients": ["person.dennis", "person.unbekannt"]}, blocking=True)
+    assert _push_services(calls, "nur Dennis") == ["dennis_alle_geraete"]
+
+    # combined with push_to: Dennis is at home, so nobody gets the push
+    hass.states.async_set("person.dennis", "home")
+    await hass.async_block_till_done()
+    _quiet(monkeypatch, False)
+    await hass.services.async_call(DOMAIN, "send", {
+        "title": "Test", "message": "Dennis weg?", "push_to": "absent",
+        "recipients": ["person.dennis"]}, blocking=True)
+    assert _pushes(calls, "Dennis weg?") == []
+    assert calls["tts"]  # announcement still happens
+
+    # low priority with recipients
+    await hass.services.async_call(DOMAIN, "send", {
+        "title": "Test", "message": "leise", "priority": "low",
+        "recipients": ["person.christos"]}, blocking=True)
+    assert _pushes(calls, "leise") == []  # Christos is away, low goes to present only
+    await hass.services.async_call(DOMAIN, "send", {
+        "title": "Test", "message": "leise2", "priority": "low", "push_to": "all",
+        "recipients": ["person.christos"]}, blocking=True)
+    assert _push_services(calls, "leise2") == ["christos_alle_geraete"]
+
+
+async def test_announcement_text_urgent_and_emergency(hass: HomeAssistant, monkeypatch) -> None:
+    calls = _register_services(hass)
+    alexa = _register_alexa(hass)
+    _register_volume(hass)
+    _fast_announce(monkeypatch)
+    entry = await _setup(hass, home=True)
+    hass.states.async_set("binary_sensor.wz", "on")
+    _quiet(monkeypatch, False)
+    await hass.services.async_call(DOMAIN, "send", {
+        "title": "Haustür", "message": "Lang & ausführlich", "priority": "urgent",
+        "announcement": "Es hat geklingelt"}, blocking=True)
+    assert alexa[0].data["message"] == "<emphasis level='strong'>Es hat geklingelt</emphasis>"
+    assert _pushes(calls, "Lang & ausführlich")
+
+    await hass.services.async_call(DOMAIN, "send", {
+        "title": "Wasser", "message": "Keller nass, Sensor 3", "priority": "emergency",
+        "tag": "leck", "announcement": "Wasser im Keller", "push_to": "present",
+        "recipients": ["person.dennis"]}, blocking=True)
+    await hass.async_block_till_done()
+    # emergency ignores push_to / recipients: everyone gets the push
+    assert len(_pushes(calls, "Keller nass, Sensor 3")) == 2
+    assert any("Wasser im Keller" in c.data["message"] for c in alexa[1:])
+    await hass.services.async_call(DOMAIN, "clear", {"tag": "leck"}, blocking=True)
+    await hass.async_block_till_done()
+    assert entry.runtime_data is not None
+
+
+async def test_update_push_without_announcement(hass: HomeAssistant, monkeypatch) -> None:
+    calls = _register_services(hass)
+    await _setup(hass, home=True)
+    _quiet(monkeypatch, False)
+    hass.states.async_set("person.christos", "not_home")
+    await hass.async_block_till_done()
+    await hass.services.async_call(DOMAIN, "send", {
+        "title": "Haustür", "message": "Paketbote", "push_to": "absent", "tag": "klingel",
+        "speakers": [], "data": {"alert_once": True}}, blocking=True)
+    assert calls["tts"] == []
+    data = _pushes(calls, "Paketbote")[0].data["data"]
+    assert data["tag"] == "klingel" and data["alert_once"] is True

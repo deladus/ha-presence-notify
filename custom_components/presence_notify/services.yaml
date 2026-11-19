@@ -57,6 +57,26 @@ send:
           max: 1440
           unit_of_measurement: min
           mode: box
+    push_to:
+      required: false
+      selector:
+        select:
+          translation_key: push_to
+          options:
+            - all
+            - present
+            - absent
+    recipients:
+      required: false
+      selector:
+        entity:
+          domain: person
+          multiple: true
+    announcement:
+      required: false
+      example: "Someone rang the doorbell"
+      selector:
+        text:
     actions:
       required: false
       selector:

@@ -77,6 +77,9 @@ ATTR_PRIORITY = "priority"
 ATTR_TAG = "tag"
 ATTR_STORE = "store"
 ATTR_REMOVE_AFTER = "remove_after"
+ATTR_PUSH_TO = "push_to"
+ATTR_RECIPIENTS = "recipients"
+ATTR_ANNOUNCEMENT = "announcement"
 
 PRIORITY_EMERGENCY = "emergency"
 PRIORITY_URGENT = "urgent"
@@ -84,6 +87,12 @@ PRIORITY_NORMAL = "normal"
 PRIORITY_LOW = "low"
 PRIORITIES = [PRIORITY_EMERGENCY, PRIORITY_URGENT, PRIORITY_NORMAL, PRIORITY_LOW]
 ACTION_PREFIX = "PN_"
+
+# Who gets the push (send): default depends on the priority
+PUSH_TO_ALL = "all"
+PUSH_TO_PRESENT = "present"
+PUSH_TO_ABSENT = "absent"
+PUSH_TO_OPTIONS = [PUSH_TO_ALL, PUSH_TO_PRESENT, PUSH_TO_ABSENT]
 
 EVENT_DELIVERED = f"{DOMAIN}_delivered"
 SIGNAL_UPDATE = f"{DOMAIN}_update"

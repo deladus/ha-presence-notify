@@ -280,6 +280,18 @@
           "name": "Automatisch entfernen nach",
           "description": "Minuten, nach denen der Push von allen Handys und die Nachricht aus den gespeicherten Nachrichten entfernt wird (kommt dann nicht mehr ins Briefing). Erneutes Senden mit derselben Kennung startet die Zeit neu. Ohne Kennung wird eine erzeugt. Gilt nicht für Notfälle."
         },
+        "push_to": {
+          "name": "Push an",
+          "description": "Wer den Push bekommt. Leer = je nach Priorität (Dringend: alle, Normal/Niedrig: nur die Anwesenden). Alle: alle Personen. Anwesende: nur wer zu Hause ist. Abwesende: nur wer unterwegs ist – z. B. Klingel: Ansage für die Anwesenden, Push für die Abwesenden. Mit Abwesende und niemand zu Hause bekommen bei Normal alle den Push (gespeichert wird nur, wenn „Speichern“ an ist). Gilt nicht für Notfälle (immer alle)."
+        },
+        "recipients": {
+          "name": "Empfänger",
+          "description": "Push nur an diese Personen (müssen in der Integration eingerichtet sein). Wirkt zusammen mit „Push an“, z. B. nur Dennis und nur wenn er unterwegs ist. Leer = alle Personen. Ansagen sind davon nicht betroffen (sie richten sich nach den Räumen). Gilt nicht für Notfälle."
+        },
+        "announcement": {
+          "name": "Ansagetext",
+          "description": "Eigener Text für die Lautsprecher, z. B. kurz „Es hat geklingelt“, während der Push ausführlicher ist. Leer = „Titel: Nachricht“. Wird nicht für das Briefing gespeicherter Nachrichten verwendet."
+        },
         "actions": {
           "name": "Aktionsknöpfe",
           "description": "Knöpfe im Push. Ohne Link löst ein Knopf das Ereignis mobile_app_notification_action mit der Kennung aus (leer = aus dem Titel gebildet, z. B. PN_GARAGE_OFFNEN). Mit Link öffnet der Knopf ihn."
@@ -348,6 +360,13 @@
         "urgent": "Dringend",
         "normal": "Normal",
         "low": "Niedrig"
+      }
+    },
+    "push_to": {
+      "options": {
+        "all": "Alle",
+        "present": "Nur Anwesende",
+        "absent": "Nur Abwesende"
       }
     }
   },

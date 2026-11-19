@@ -61,7 +61,7 @@ You can try everything without touching your real setup:
 
 | Action | Purpose |
 |---|---|
-| `presence_notify.send` | `title`, `message`, optional `priority` (`emergency`/`urgent`/`normal`/`low`), `tag`, `store` (normal only), `remove_after` (minutes), `data` (push extras such as `image`), `actions` (buttons, see below), `speakers` (limit to these), `ignore_quiet_hours` |
+| `presence_notify.send` | `title`, `message`, optional `priority` (`emergency`/`urgent`/`normal`/`low`), `tag`, `store` (normal only), `remove_after` (minutes), `push_to` (`all`/`present`/`absent`), `recipients` (persons), `announcement` (own text for the speakers), `data` (push extras such as `image`), `actions` (buttons, see below), `speakers` (limit to these), `ignore_quiet_hours` |
 | `presence_notify.clear` | `tag`: remove a tagged notification from all phones and from the stored notifications; ends an emergency with this tag |
 | `presence_notify.deliver_pending` | Deliver stored notifications now as one briefing |
 | `presence_notify.clear_pending` | Delete stored notifications |
@@ -152,6 +152,43 @@ data:
   remove_after: 15
 ```
 
+### Who gets the push: `push_to` and `recipients`
+
+- **`push_to`** – `all`, `present` (only persons at home) or `absent` (only persons away). Without it, the priority decides as before (urgent: everyone, normal/low: persons at home).
+- **`recipients`** – only these persons (person entities set up in the integration). Combined with `push_to`, e.g. only Dennis and only if he is away.
+- Announcements are not affected – they still depend on the rooms. Emergencies ignore both fields and always reach everyone.
+- Normal priority with `push_to: absent` or `all` while nobody is home: everyone gets the push; it is stored for the briefing only if `store` is on.
+- Not part of the briefing: stored notifications are delivered to whoever comes home, regardless of these fields.
+
+### Separate text for the speakers: `announcement`
+
+Speakers say `announcement` instead of "Title: Message" – e.g. short for the speaker, detailed in the push. With urgent and emergency the whole text is emphasized on Alexa. The briefing of stored notifications keeps using title and message.
+
+Example doorbell – announcement for those at home, push for those away, later update of the same push without a new announcement:
+
+```yaml
+action: presence_notify.send
+data:
+  title: Front door
+  message: Someone is at the door – analysis running …
+  announcement: Someone rang the doorbell
+  push_to: absent
+  store: false
+  tag: doorbell
+---
+# update: same tag, no speakers = no announcement, Android does not ring again
+action: presence_notify.send
+data:
+  title: Front door
+  message: The parcel carrier is at the door.
+  push_to: absent
+  store: false
+  tag: doorbell
+  speakers: []
+  data:
+    alert_once: true
+```
+
 ## Alexa questions (experts only)
 
 `presence_notify.ask` always works by push with buttons. With the switch **Alexa questions (experts only)** in the general settings, Alexa also asks in the room where someone is detected. This needs the [Alexa Actionable Notifications](https://github.com/keatontaylor/alexa-actions) skill and its script – see the **[guide](docs/alexa-rueckfragen.md)** (German/English).
@@ -180,6 +217,10 @@ Der Heimische Nachrichtendienst schickt Benachrichtigungen an alle, die zu Hause
 **Prioritäten** (`priority`): *Notfall* kommt immer – Push an alle (Android-Alarmkanal, iOS kritisch), Ansage auf allen Lautsprechern auch nachts und ohne Anwesenheit, vorher pro Raum um einstellbar viele Stufen lauter (danach zurück), Wiederholung bis jemand quittiert (Knopf „Gesehen“, Alexa-Frage „Hast du das gehört?“, Schaltfläche „Notfall quittieren“ oder `presence_notify.clear`). *Dringend*: sofort Push an alle, betonte Ansage, aber nicht in der Ruhezeit. *Normal*: wie bisher. *Niedrig*: nur Push und nur wenn jemand zu Hause ist, sonst verworfen.
 
 **Nur im Moment wichtig:** `store: false` (gilt **nur für die Priorität Normal**) verwirft eine Nachricht, wenn niemand zu Hause ist, statt sie fürs Briefing zu speichern – z. B. für eine Trocknerempfehlung. `remove_after: 15` entfernt Push und gespeicherte Nachricht nach 15 Minuten automatisch (nicht bei Notfällen).
+
+**Wer den Push bekommt:** `push_to` (`all` = alle, `present` = nur Anwesende, `absent` = nur Abwesende; ohne Angabe wie bisher je nach Priorität) und `recipients` (nur diese Personen, kombinierbar). Ansagen richten sich weiter nach den Räumen; Notfälle gehen immer an alle. Beispiel Klingel: Ansage für die Anwesenden, Push nur für die Abwesenden.
+
+**Eigener Ansagetext:** `announcement` wird statt „Titel: Nachricht“ angesagt – z. B. kurz „Es hat geklingelt“, im Push ausführlicher. Das Briefing gespeicherter Nachrichten nutzt weiter Titel und Nachricht.
 
 **Automatisch entfernen:** Mit `tag` senden, später `presence_notify.clear` mit derselben Kennung – der Push verschwindet von allen Handys und die Meldung aus dem Speicher (z. B. „Balkontür offen“ → Tür zu).
 
