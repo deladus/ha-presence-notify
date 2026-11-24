@@ -80,6 +80,9 @@ ATTR_REMOVE_AFTER = "remove_after"
 ATTR_PUSH_TO = "push_to"
 ATTR_RECIPIENTS = "recipients"
 ATTR_ANNOUNCEMENT = "announcement"
+ATTR_REMINDER = "reminder"
+ATTR_REMIND_EVERY = "remind_every"
+DEFAULT_REMIND_EVERY = 60
 
 PRIORITY_EMERGENCY = "emergency"
 PRIORITY_URGENT = "urgent"

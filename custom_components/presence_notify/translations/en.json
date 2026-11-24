@@ -292,6 +292,14 @@
           "name": "Announcement text",
           "description": "Separate text for the speakers, e.g. short 'Someone rang the doorbell' while the push says more. Empty = 'Title: Message'. Not used for the briefing of stored notifications."
         },
+        "reminder": {
+          "name": "Send as reminder",
+          "description": "The push gets the buttons \"Done\" and \"Remind me later\". Later: removed from all phones and sent again after the reminder interval – push and announcement, with a counter (\"snoozed 2 times\"); if nobody is home by then it is stored and comes with the briefing. Done (by anyone) or presence_notify.clear with the tag ends it. A reminder is always handled as priority normal."
+        },
+        "remind_every": {
+          "name": "Remind again after",
+          "description": "Minutes until \"Remind me later\" sends the reminder again. Default: 60."
+        },
         "actions": {
           "name": "Action buttons",
           "description": "Buttons in the push. Without a link, pressing a button fires the event mobile_app_notification_action with the ID (generated from the title if empty, e.g. PN_OPEN_GARAGE). With a link, the button opens it."

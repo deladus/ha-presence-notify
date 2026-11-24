@@ -5,9 +5,9 @@
 *Heimischer Nachrichtendienst* · domain `presence_notify`
 
 > [!WARNING]
-> **Early beta (0.4.1b1).** This integration is at the very beginning of its development. Expect bugs, breaking changes to settings and actions, and missing features. Please don't rely on it for important notifications yet, and report problems via [Issues](https://github.com/deladus/ha-presence-notify/issues).
+> **Early beta (0.5.0b1).** This integration is at the very beginning of its development. Expect bugs, breaking changes to settings and actions, and missing features. Please don't rely on it for important notifications yet, and report problems via [Issues](https://github.com/deladus/ha-presence-notify/issues).
 >
-> **Frühe Beta (0.4.1b1).** Die Integration steht noch ganz am Anfang. Fehler, inkompatible Änderungen an Einstellungen und Aktionen sowie fehlende Funktionen sind zu erwarten. Bitte noch nicht für wichtige Benachrichtigungen verwenden. Probleme gern über [Issues](https://github.com/deladus/ha-presence-notify/issues) melden.
+> **Frühe Beta (0.5.0b1).** Die Integration steht noch ganz am Anfang. Fehler, inkompatible Änderungen an Einstellungen und Aktionen sowie fehlende Funktionen sind zu erwarten. Bitte noch nicht für wichtige Benachrichtigungen verwenden. Probleme gern über [Issues](https://github.com/deladus/ha-presence-notify/issues) melden.
 
 Notifications for Home Assistant that reach whoever is **at home and in earshot**, and don't get lost when nobody is home.
 
@@ -61,8 +61,8 @@ You can try everything without touching your real setup:
 
 | Action | Purpose |
 |---|---|
-| `presence_notify.send` | `title`, `message`, optional `priority` (`emergency`/`urgent`/`normal`/`low`), `tag`, `store` (normal only), `remove_after` (minutes), `push_to` (`all`/`present`/`absent`), `recipients` (persons), `announcement` (own text for the speakers), `data` (push extras such as `image`), `actions` (buttons, see below), `speakers` (limit to these), `ignore_quiet_hours` |
-| `presence_notify.clear` | `tag`: remove a tagged notification from all phones and from the stored notifications; ends an emergency with this tag |
+| `presence_notify.send` | `title`, `message`, optional `priority` (`emergency`/`urgent`/`normal`/`low`), `tag`, `store` (normal only), `remove_after` (minutes), `push_to` (`all`/`present`/`absent`), `recipients` (persons), `announcement` (own text for the speakers), `reminder` + `remind_every` (minutes), `data` (push extras such as `image`), `actions` (buttons, see below), `speakers` (limit to these), `ignore_quiet_hours` |
+| `presence_notify.clear` | `tag`: remove a tagged notification from all phones and from the stored notifications; ends an emergency or reminder with this tag |
 | `presence_notify.deliver_pending` | Deliver stored notifications now as one briefing |
 | `presence_notify.clear_pending` | Delete stored notifications |
 | `presence_notify.ask` | Yes/no question by push with buttons (optionally also by Alexa). Returns `answer` (`yes`/`no`/`timeout`) and `by`. See [Alexa questions](docs/alexa-rueckfragen.md) |
@@ -189,6 +189,25 @@ data:
     alert_once: true
 ```
 
+### Reminders: `reminder` and `remind_every`
+
+With `reminder: true` the push gets two buttons, **Done** and **Remind me later**:
+
+- **Remind me later** removes the push from all phones and sends the reminder again after `remind_every` minutes (default 60) – push and announcement, with a counter ("The laundry is done (snoozed 2 times)").
+- If nobody is home when it is due, it is stored and comes with the briefing after coming home.
+- **Done** – pressed by anyone – ends the reminder for everyone. `presence_notify.clear` with the same tag ends it as well, e.g. when the washing machine door is opened.
+- A reminder is always handled as priority **normal** (quiet hours, storing, `push_to` and `recipients` work as usual).
+
+```yaml
+action: presence_notify.send
+data:
+  title: Washing machine
+  message: The laundry is done.
+  reminder: true
+  remind_every: 60
+  tag: laundry
+```
+
 ## Alexa questions (experts only)
 
 `presence_notify.ask` always works by push with buttons. With the switch **Alexa questions (experts only)** in the general settings, Alexa also asks in the room where someone is detected. This needs the [Alexa Actionable Notifications](https://github.com/keatontaylor/alexa-actions) skill and its script – see the **[guide](docs/alexa-rueckfragen.md)** (German/English).
@@ -221,6 +240,8 @@ Der Heimische Nachrichtendienst schickt Benachrichtigungen an alle, die zu Hause
 **Wer den Push bekommt:** `push_to` (`all` = alle, `present` = nur Anwesende, `absent` = nur Abwesende; ohne Angabe wie bisher je nach Priorität) und `recipients` (nur diese Personen, kombinierbar). Ansagen richten sich weiter nach den Räumen; Notfälle gehen immer an alle. Beispiel Klingel: Ansage für die Anwesenden, Push nur für die Abwesenden.
 
 **Eigener Ansagetext:** `announcement` wird statt „Titel: Nachricht“ angesagt – z. B. kurz „Es hat geklingelt“, im Push ausführlicher. Das Briefing gespeicherter Nachrichten nutzt weiter Titel und Nachricht.
+
+**Erinnerungen:** Mit `reminder: true` bekommt der Push die Knöpfe „Erledigt“ und „Später erinnern“. „Später erinnern“ nimmt den Push von allen Handys und sendet die Erinnerung nach `remind_every` Minuten (Standard 60) erneut – Push und Ansage, mit Zähler („2-mal verschoben“). Ist dann niemand zu Hause, wird sie gespeichert und kommt mit dem Briefing. „Erledigt“ (von irgendwem) oder `presence_notify.clear` mit der Kennung beendet sie für alle. Erinnerungen laufen immer als Priorität Normal.
 
 **Automatisch entfernen:** Mit `tag` senden, später `presence_notify.clear` mit derselben Kennung – der Push verschwindet von allen Handys und die Meldung aus dem Speicher (z. B. „Balkontür offen“ → Tür zu).
 

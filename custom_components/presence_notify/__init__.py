@@ -22,6 +22,8 @@ from .const import (
     ATTR_PUSH_TO,
     ATTR_QUESTION,
     ATTR_RECIPIENTS,
+    ATTR_REMIND_EVERY,
+    ATTR_REMINDER,
     ATTR_REMOVE_AFTER,
     ATTR_SPEAKERS,
     ATTR_STORE,
@@ -61,6 +63,8 @@ SEND_SCHEMA = vol.Schema(
         vol.Optional(ATTR_PUSH_TO): vol.In(PUSH_TO_OPTIONS),
         vol.Optional(ATTR_RECIPIENTS): cv.entity_ids,
         vol.Optional(ATTR_ANNOUNCEMENT): cv.string,
+        vol.Optional(ATTR_REMINDER, default=False): cv.boolean,
+        vol.Optional(ATTR_REMIND_EVERY): vol.All(vol.Coerce(float), vol.Range(min=1, max=1440)),
         vol.Optional(ATTR_ACTIONS): vol.All(
             cv.ensure_list,
             [
@@ -117,6 +121,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             data.get(ATTR_PUSH_TO),
             data.get(ATTR_RECIPIENTS),
             data.get(ATTR_ANNOUNCEMENT),
+            data.get(ATTR_REMINDER, False),
+            data.get(ATTR_REMIND_EVERY),
         )
 
     async def _deliver(call: ServiceCall) -> None:

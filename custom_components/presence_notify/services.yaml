@@ -77,6 +77,20 @@ send:
       example: "Someone rang the doorbell"
       selector:
         text:
+    reminder:
+      required: false
+      default: false
+      selector:
+        boolean:
+    remind_every:
+      required: false
+      example: 60
+      selector:
+        number:
+          min: 1
+          max: 1440
+          unit_of_measurement: min
+          mode: box
     actions:
       required: false
       selector:

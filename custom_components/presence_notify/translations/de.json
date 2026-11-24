@@ -292,6 +292,14 @@
           "name": "Ansagetext",
           "description": "Eigener Text für die Lautsprecher, z. B. kurz „Es hat geklingelt“, während der Push ausführlicher ist. Leer = „Titel: Nachricht“. Wird nicht für das Briefing gespeicherter Nachrichten verwendet."
         },
+        "reminder": {
+          "name": "Als Erinnerung senden",
+          "description": "Der Push bekommt die Knöpfe „Erledigt“ und „Später erinnern“. Später: verschwindet von allen Handys und kommt nach dem Erinnerungsabstand erneut – Push und Ansage, mit Zähler („2-mal verschoben“); ist dann niemand zu Hause, wird sie gespeichert und kommt mit dem Briefing. „Erledigt“ (von irgendwem) oder presence_notify.clear mit der Kennung beendet sie. Eine Erinnerung läuft immer als Priorität Normal."
+        },
+        "remind_every": {
+          "name": "Erneut erinnern nach",
+          "description": "Minuten, bis „Später erinnern“ die Erinnerung erneut sendet. Standard: 60."
+        },
         "actions": {
           "name": "Aktionsknöpfe",
           "description": "Knöpfe im Push. Ohne Link löst ein Knopf das Ereignis mobile_app_notification_action mit der Kennung aus (leer = aus dem Titel gebildet, z. B. PN_GARAGE_OFFNEN). Mit Link öffnet der Knopf ihn."

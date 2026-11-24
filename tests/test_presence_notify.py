@@ -1234,3 +1234,122 @@ async def test_update_push_without_announcement(hass: HomeAssistant, monkeypatch
     assert calls["tts"] == []
     data = _pushes(calls, "Paketbote")[0].data["data"]
     assert data["tag"] == "klingel" and data["alert_once"] is True
+
+
+# ------------------------------------------------------------------ 0.5.0 reminders
+
+def _rem_actions(call):
+    return [a["action"] for a in call.data["data"]["actions"]]
+
+
+async def _tick(hass, freezer, minutes):
+    from datetime import timedelta
+    from pytest_homeassistant_custom_component.common import async_fire_time_changed
+    from homeassistant.util import dt as dt_util
+    freezer.tick(timedelta(minutes=minutes))
+    async_fire_time_changed(hass, dt_util.utcnow())
+    await hass.async_block_till_done()
+
+
+async def test_reminder_buttons_snooze_and_remind_again(hass: HomeAssistant, freezer, monkeypatch) -> None:
+    calls = _register_services(hass)
+    _quiet(monkeypatch, False)
+    entry = await _setup(hass, home=True)
+    await hass.services.async_call(
+        DOMAIN, "send", {"title": "Wäsche", "message": "Ist fertig", "reminder": True, "remind_every": 30}, blocking=True)
+    first = _pushes(calls, "Ist fertig")
+    assert len(first) == 2
+    acts = first[0].data["data"]["actions"]
+    assert [a["title"] for a in acts[:2]] == ["Done", "Remind me later"]
+    tag = first[0].data["data"]["tag"]
+    tts_before = len(calls["tts"])
+    hass.bus.async_fire("mobile_app_notification_action", {"action": acts[1]["action"]})
+    await hass.async_block_till_done()
+    cleared = _pushes(calls, "clear_notification")
+    assert len(cleared) == 2 and cleared[0].data["data"]["tag"] == tag
+    await _tick(hass, freezer, 29)
+    assert _pushes(calls, "Ist fertig (snoozed 1 times)") == []
+    await _tick(hass, freezer, 2)
+    again = _pushes(calls, "Ist fertig (snoozed 1 times)")
+    assert len(again) == 2 and again[0].data["data"]["tag"] == tag
+    assert _rem_actions(again[0])[:2] == [a["action"] for a in acts[:2]]
+    assert len(calls["tts"]) > tts_before  # announced again
+    # second snooze counts up
+    hass.bus.async_fire("mobile_app_notification_action", {"action": acts[1]["action"]})
+    await hass.async_block_till_done()
+    await _tick(hass, freezer, 31)
+    assert len(_pushes(calls, "Ist fertig (snoozed 2 times)")) == 2
+    assert len(entry.runtime_data._reminders) == 1
+
+
+async def test_reminder_done_ends_for_all(hass: HomeAssistant, freezer) -> None:
+    calls = _register_services(hass)
+    entry = await _setup(hass, home=True)
+    await hass.services.async_call(
+        DOMAIN, "send", {"title": "W", "message": "Fertig", "reminder": True, "ignore_quiet_hours": True}, blocking=True)
+    acts = _pushes(calls, "Fertig")[0].data["data"]["actions"]
+    hass.bus.async_fire("mobile_app_notification_action", {"action": acts[1]["action"]})  # later
+    await hass.async_block_till_done()
+    hass.bus.async_fire("mobile_app_notification_action", {"action": acts[0]["action"]})  # done
+    await hass.async_block_till_done()
+    assert entry.runtime_data._reminders == {}
+    assert len(_pushes(calls, "clear_notification")) == 4  # later + done, both persons
+    await _tick(hass, freezer, 61)
+    assert _pushes(calls, "Fertig (snoozed 1 times)") == []
+
+
+async def test_reminder_due_when_nobody_home_is_stored(hass: HomeAssistant, freezer) -> None:
+    calls = _register_services(hass)
+    entry = await _setup(hass, home=True)
+    await hass.services.async_call(
+        DOMAIN, "send", {"title": "W", "message": "Fertig", "reminder": True, "ignore_quiet_hours": True}, blocking=True)
+    acts = _pushes(calls, "Fertig")[0].data["data"]["actions"]
+    hass.bus.async_fire("mobile_app_notification_action", {"action": acts[1]["action"]})
+    await hass.async_block_till_done()
+    hass.states.async_set("person.dennis", "not_home")
+    hass.states.async_set("person.christos", "not_home")
+    await hass.async_block_till_done()
+    await _tick(hass, freezer, 61)
+    assert _pushes(calls, "Fertig (snoozed 1 times)") == []
+    pending = entry.runtime_data.pending
+    assert [i["message"] for i in pending] == ["Fertig (snoozed 1 times)"]
+    assert [a["title"] for a in pending[0]["data"]["actions"][:2]] == ["Done", "Remind me later"]
+
+
+async def test_reminder_is_normal_and_clear_ends_it(hass: HomeAssistant, freezer) -> None:
+    calls = _register_services(hass)
+    entry = await _setup(hass, home=False)
+    # urgent is ignored: a reminder is normal, so it is stored when nobody is home
+    await hass.services.async_call(
+        DOMAIN, "send", {"title": "W", "message": "Fertig", "reminder": True, "priority": "urgent", "tag": "waesche"}, blocking=True)
+    assert calls["push"] == []
+    assert [i["tag"] for i in entry.runtime_data.pending] == ["waesche"]
+    assert len(entry.runtime_data._reminders) == 1
+    await hass.services.async_call(DOMAIN, "clear", {"tag": "waesche"}, blocking=True)
+    assert entry.runtime_data._reminders == {} and entry.runtime_data.pending == []
+
+
+async def test_reminder_store_off_away_is_dropped(hass: HomeAssistant) -> None:
+    _register_services(hass)
+    entry = await _setup(hass, home=False)
+    await hass.services.async_call(
+        DOMAIN, "send", {"title": "W", "message": "Fertig", "reminder": True, "store": False}, blocking=True)
+    assert entry.runtime_data._reminders == {} and entry.runtime_data.pending == []
+
+
+async def test_reminder_survives_reload(hass: HomeAssistant, freezer) -> None:
+    calls = _register_services(hass)
+    entry = await _setup(hass, home=True)
+    await hass.services.async_call(
+        DOMAIN, "send", {"title": "W", "message": "Fertig", "reminder": True, "remind_every": 10, "ignore_quiet_hours": True}, blocking=True)
+    acts = _pushes(calls, "Fertig")[0].data["data"]["actions"]
+    hass.bus.async_fire("mobile_app_notification_action", {"action": acts[1]["action"]})
+    await hass.async_block_till_done()
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    await _tick(hass, freezer, 11)
+    assert len(_pushes(calls, "Fertig (snoozed 1 times)")) == 2
+    # buttons still work after the reload
+    hass.bus.async_fire("mobile_app_notification_action", {"action": acts[0]["action"]})
+    await hass.async_block_till_done()
+    assert entry.runtime_data._reminders == {}

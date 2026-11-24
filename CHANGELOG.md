@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0b1 (beta)
+- `presence_notify.send`: new fields `reminder` and `remind_every` (minutes, default 60). The push gets "Done" and "Remind me later"
+  - **Remind me later:** the push is removed from all phones and the reminder comes again after `remind_every` minutes – push and announcement, with a counter ("snoozed 2 times"). If nobody is home by then, it is stored and comes with the briefing
+  - **Done** (by anyone) ends the reminder for everyone; `presence_notify.clear` with the tag ends it as well (e.g. washing machine door opened)
+  - A reminder is always handled as priority normal. Without a tag one is generated. A new reminder with the same tag replaces the old one. Reminders and their next time survive restarts
+
 ## 0.4.2b1 (beta)
 - `presence_notify.send`: new field `push_to` – `all`, `present` or `absent`. Without it the priority decides as before (urgent: everyone, normal/low: persons at home). E.g. doorbell: announcement for those at home, push only for those away. Normal with `absent`/`all` while nobody is home: everyone gets the push, stored only if `store` is on
 - `presence_notify.send`: new field `recipients` – push only to these persons (combined with `push_to`). Announcements still depend on the rooms

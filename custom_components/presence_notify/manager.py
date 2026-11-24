@@ -65,6 +65,7 @@ from .const import (
     DEFAULT_EMERGENCY_INTERVAL,
     DEFAULT_EMERGENCY_REPEATS,
     DEFAULT_EMERGENCY_STEP,
+    DEFAULT_REMIND_EVERY,
     DEFAULT_IMAGE_MERGE_SECONDS,
     DEFAULT_MAX_PENDING,
     DEFAULT_QUIET_END,
@@ -89,6 +90,11 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Reminders without a pending repetition are forgotten after this many days
+REMINDER_MAX_AGE_DAYS = 7
+REMINDER_DONE_PREFIX = "PN_REMDONE_"
+REMINDER_LATER_PREFIX = "PN_REMLATER_"
 
 AI_TIMEOUT = 60
 AI_ATTEMPTS = 2
@@ -149,6 +155,9 @@ TEXTS = {
         "late_decided_anon": "Danke, es wurde bereits mit {result} entschieden.",
         "result_yes_cap": "Ja",
         "result_no_cap": "Nein",
+        "remind_done": "Erledigt",
+        "remind_later": "Später erinnern",
+        "remind_count": " ({n}-mal verschoben)",
         "vol_up": "Lautstärke um {n} erhöhen",
         "vol_down": "Lautstärke um {n} verringern",
     },
@@ -193,6 +202,9 @@ TEXTS = {
         "late_decided_anon": "Thanks, it was already decided: {result}.",
         "result_yes_cap": "yes",
         "result_no_cap": "no",
+        "remind_done": "Done",
+        "remind_later": "Remind me later",
+        "remind_count": " (snoozed {n} times)",
         "vol_up": "turn the volume up by {n}",
         "vol_down": "turn the volume down by {n}",
     },
@@ -289,6 +301,9 @@ class PresenceNotifyManager:
         # tag -> due time (UTC timestamp) for "remove after X minutes"
         self._expiries: dict[str, float] = {}
         self._expiry_unsubs: dict[str, Callable[[], None]] = {}
+        # reminder id -> {"tag", "title", "message", "data", "speakers", ...}
+        self._reminders: dict[str, dict[str, Any]] = {}
+        self._reminder_unsubs: dict[str, Callable[[], None]] = {}
 
     # ------------------------------------------------------------------ config
 
@@ -325,6 +340,20 @@ class PresenceNotifyManager:
         }
         for tag, due in list(self._expiries.items()):
             self._schedule_expiry(tag, due)
+        oldest = dt_util.utcnow().timestamp() - REMINDER_MAX_AGE_DAYS * 86400
+        self._reminders = {
+            rid: rem
+            for rid, rem in (stored.get("reminders") or {}).items()
+            if rem.get("due") or float(rem.get("ts", 0)) >= oldest
+        }
+        for rid, rem in self._reminders.items():
+            if rem.get("due"):
+                self._schedule_reminder(rid, float(rem["due"]))
+        self._unsubs.append(
+            self.hass.bus.async_listen(
+                "mobile_app_notification_action", self._handle_reminder_action
+            )
+        )
 
         await self.hass.async_add_executor_job(self._cleanup_orphans)
         self._someone_home = self.someone_home()
@@ -356,6 +385,9 @@ class PresenceNotifyManager:
         for unsub in self._expiry_unsubs.values():
             unsub()
         self._expiry_unsubs.clear()
+        for unsub in self._reminder_unsubs.values():
+            unsub()
+        self._reminder_unsubs.clear()
         for unsub in self._unsubs:
             unsub()
         self._unsubs.clear()
@@ -368,6 +400,7 @@ class PresenceNotifyManager:
                 if self.last_delivery
                 else None,
                 "expiries": self._expiries,
+                "reminders": self._reminders,
             }
         )
         async_dispatcher_send(self.hass, SIGNAL_UPDATE)
@@ -487,6 +520,8 @@ class PresenceNotifyManager:
         push_to: str | None = None,
         recipients: list[str] | None = None,
         announcement: str | None = None,
+        reminder: bool = False,
+        remind_every: float | None = None,
     ) -> None:
         """Main entry point used by the presence_notify.send service.
 
@@ -503,7 +538,29 @@ class PresenceNotifyManager:
         ``push_to`` (all/present/absent) and ``recipients`` (person entities)
         decide who gets the push (not for emergencies); announcements stay
         room based. ``announcement`` replaces "title: message" on the speakers.
+
+        ``reminder`` (always normal): the push gets "Done" and "Remind me
+        later"; later sends it again after ``remind_every`` minutes (push and
+        announcement), or stores it when nobody is home by then. Done (by
+        anyone) or presence_notify.clear with the tag ends it.
         """
+        rem_entry: dict[str, Any] | None = None
+        if reminder:
+            priority = PRIORITY_NORMAL
+            rem_entry = {
+                "title": title,
+                "message": message,
+                "data": dict(data or {}),
+                "actions": list(actions or []),
+                "speakers": speakers,
+                "ignore_quiet_hours": ignore_quiet_hours,
+                "push_to": push_to,
+                "recipients": recipients,
+                "announcement": announcement,
+                "interval": float(remind_every or DEFAULT_REMIND_EVERY),
+                "count": 0,
+                "ts": dt_util.utcnow().timestamp(),
+            }
         data = _with_actions(dict(data or {}), actions)
         tag = (tag or str(data.get("tag") or "")).strip() or None
         announcement = (announcement or "").strip() or None
@@ -514,7 +571,7 @@ class PresenceNotifyManager:
             await self._async_emergency(title, message, data, speakers, tag, announcement)
             return
 
-        if remove_after and not tag:
+        if (remove_after or reminder) and not tag:
             tag = f"{DOMAIN}_auto_{uuid.uuid4().hex[:10]}"
         if tag:
             data["tag"] = tag
@@ -535,6 +592,8 @@ class PresenceNotifyManager:
             return
         if remove_after:
             await self._async_set_expiry(tag, float(remove_after))  # type: ignore[arg-type]
+        if rem_entry is not None:
+            data = await self._async_add_reminder(rem_entry, tag, data)  # type: ignore[arg-type]
 
         targets = self._push_targets(priority, push_to, recipients)
 
@@ -631,6 +690,13 @@ class PresenceNotifyManager:
         tag = tag.strip()
         if not tag:
             return
+        ended = [rid for rid, rem in self._reminders.items() if rem.get("tag") == tag]
+        for rid in ended:
+            self._reminders.pop(rid, None)
+            if unsub := self._reminder_unsubs.pop(rid, None):
+                unsub()
+        if ended:
+            await self._async_save()
         if self._expiries.pop(tag, None) is not None:
             if unsub := self._expiry_unsubs.pop(tag, None):
                 unsub()
@@ -647,6 +713,93 @@ class PresenceNotifyManager:
                 self._stop_waiting()
             await self._async_save()
         await self._clear_push(tag, self.persons)
+
+    # --------------------------------------------------------------- reminders
+
+    def _reminder_push_data(self, rid: str, data: dict[str, Any], actions: list) -> dict[str, Any]:
+        """Push data with "Done" / "Remind me later" in front of own buttons."""
+        t = self.texts
+        out = _with_actions(dict(data), actions)
+        out["actions"] = [
+            {"action": f"{REMINDER_DONE_PREFIX}{rid}", "title": t["remind_done"]},
+            {"action": f"{REMINDER_LATER_PREFIX}{rid}", "title": t["remind_later"]},
+        ] + list(out.get("actions") or [])
+        return out
+
+    async def _async_add_reminder(
+        self, entry: dict[str, Any], tag: str, data: dict[str, Any]
+    ) -> dict[str, Any]:
+        # a new reminder with the same tag replaces the old one
+        for old in [r for r, rem in self._reminders.items() if rem.get("tag") == tag]:
+            self._reminders.pop(old, None)
+            if unsub := self._reminder_unsubs.pop(old, None):
+                unsub()
+        rid = uuid.uuid4().hex[:10]
+        entry["tag"] = tag
+        entry["data"]["tag"] = tag
+        self._reminders[rid] = entry
+        await self._async_save()
+        return self._reminder_push_data(rid, data, [])
+
+    @callback
+    def _handle_reminder_action(self, event: Event) -> None:
+        action = str(event.data.get("action") or "")
+        if action.startswith(REMINDER_DONE_PREFIX):
+            rid = action[len(REMINDER_DONE_PREFIX):]
+            if rem := self._reminders.get(rid):
+                self.hass.async_create_task(self.async_remove(rem["tag"]))
+        elif action.startswith(REMINDER_LATER_PREFIX):
+            rid = action[len(REMINDER_LATER_PREFIX):]
+            if rid in self._reminders:
+                self.hass.async_create_task(self._async_snooze(rid))
+
+    async def _async_snooze(self, rid: str) -> None:
+        rem = self._reminders.get(rid)
+        if rem is None:
+            return
+        rem["count"] = int(rem.get("count", 0)) + 1
+        due = dt_util.utcnow().timestamp() + float(rem["interval"]) * 60
+        rem["due"] = due
+        self._schedule_reminder(rid, due)
+        await self._async_save()
+        # gone from all phones until it is due again
+        await self._clear_push(rem["tag"], self.persons)
+
+    @callback
+    def _schedule_reminder(self, rid: str, due: float) -> None:
+        if unsub := self._reminder_unsubs.pop(rid, None):
+            unsub()
+
+        async def _due(_now: Any) -> None:
+            self._reminder_unsubs.pop(rid, None)
+            rem = self._reminders.get(rid)
+            if rem is None or rem.get("due") != due:
+                return
+            rem.pop("due", None)
+            await self._async_remind_again(rid)
+
+        delay = max(0.0, due - dt_util.utcnow().timestamp())
+        self._reminder_unsubs[rid] = async_call_later(self.hass, delay, _due)
+
+    async def _async_remind_again(self, rid: str) -> None:
+        """Send the reminder again as a normal notification (stored if nobody is home)."""
+        rem = self._reminders[rid]
+        message = rem["message"] + self.texts["remind_count"].format(n=rem["count"])
+        announcement = rem.get("announcement")
+        if announcement:
+            announcement += self.texts["remind_count"].format(n=rem["count"])
+        await self._async_save()
+        await self.async_send(
+            rem["title"],
+            message,
+            data=self._reminder_push_data(rid, rem["data"], rem.get("actions") or []),
+            speakers=rem.get("speakers"),
+            ignore_quiet_hours=bool(rem.get("ignore_quiet_hours")),
+            tag=rem["tag"],
+            push_to=rem.get("push_to"),
+            recipients=rem.get("recipients"),
+            announcement=announcement,
+        )
 
     async def _async_set_expiry(self, tag: str, minutes: float) -> None:
         """Remove the tagged notification after ``minutes`` (survives restarts).
