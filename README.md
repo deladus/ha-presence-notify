@@ -65,7 +65,7 @@ You can try everything without touching your real setup:
 | `presence_notify.clear` | `tag`: remove a tagged notification from all phones and from the stored notifications; ends an emergency or reminder with this tag |
 | `presence_notify.deliver_pending` | Deliver stored notifications now as one briefing |
 | `presence_notify.clear_pending` | Delete stored notifications |
-| `presence_notify.ask` | Yes/no question by push with buttons (optionally also by Alexa). Returns `answer` (`yes`/`no`/`timeout`) and `by`. See [Alexa questions](docs/alexa-rueckfragen.md) |
+| `presence_notify.ask` | Question by push (optionally also by Alexa): yes/no, a choice, a number or free text (`answer_type`, `options`, `text_answer`). Returns `answer` (`yes`/`no`/`answered`/`timeout`), `value` and `by`. See [Questions](#questions-presence_notifyask) |
 
 ```yaml
 action: presence_notify.send
@@ -208,9 +208,38 @@ data:
   tag: laundry
 ```
 
+## Questions: `presence_notify.ask`
+
+The question goes by push to everyone at home (nobody home: to the first person, with a button to pass it on) and, with Alexa questions enabled, to the speaker in the room with the most recent detection. The first answer wins; the other pushes are removed and the others are told who answered.
+
+| `answer_type` | Push | Alexa | `value` |
+|---|---|---|---|
+| `yes_no` (default) | buttons Yes / No | yes / no | `yes` / `no` |
+| `choice` + `options` | one button per option (up to three); more options → text input, options listed in the message | the spoken answer is matched to an option | the option |
+| `number` | text input | spoken number | the number |
+| `text` | text input | what was said | the text |
+
+- Typed or spoken answers for `choice` are matched to the closest option (spelling, umlauts, partial words); a number picks the option at that position (1 = first).
+- An answer that does not fit (no number, no option): the push asks again with a hint, Alexa asks once more.
+- `text_answer`: what Alexa says after answering her question, `{value}` is replaced (default "All right: {value}."). For yes/no use `text_yes` / `text_no` as before.
+- Response: `answer` is `yes`/`no` (yes/no), `answered` (other types) or `timeout`; `value` holds the answer; `by` is the person or `Alexa`.
+- Text input in the push needs the Home Assistant Companion app (Android and iOS). With the Alexa Actionable Notifications skill, numbers and free text sometimes arrive as a different response type – the integration accepts both.
+
+```yaml
+action: presence_notify.ask
+data:
+  title: Gaming
+  question: Projector or TV?
+  answer_type: choice
+  options: [Projector, TV]
+  text_answer: All right, starting on the {value}.
+response_variable: reply
+# reply.value == "Projector" / "TV", reply.answer == "timeout" without answer
+```
+
 ## Alexa questions (experts only)
 
-`presence_notify.ask` always works by push with buttons. With the switch **Alexa questions (experts only)** in the general settings, Alexa also asks in the room where someone is detected. This needs the [Alexa Actionable Notifications](https://github.com/keatontaylor/alexa-actions) skill and its script – see the **[guide](docs/alexa-rueckfragen.md)** (German/English).
+`presence_notify.ask` always works by push. With the switch **Alexa questions (experts only)** in the general settings, Alexa also asks in the room where someone is detected. This needs the [Alexa Actionable Notifications](https://github.com/keatontaylor/alexa-actions) skill and its script – see the **[guide](docs/alexa-rueckfragen.md)** (German/English).
 
 ## Entities
 
@@ -242,6 +271,8 @@ Der Heimische Nachrichtendienst schickt Benachrichtigungen an alle, die zu Hause
 **Eigener Ansagetext:** `announcement` wird statt „Titel: Nachricht“ angesagt – z. B. kurz „Es hat geklingelt“, im Push ausführlicher. Das Briefing gespeicherter Nachrichten nutzt weiter Titel und Nachricht.
 
 **Erinnerungen:** Mit `reminder: true` bekommt der Push die Knöpfe „Erledigt“ und „Später erinnern“. „Später erinnern“ nimmt den Push von allen Handys und sendet die Erinnerung nach `remind_every` Minuten (Standard 60) erneut – Push und Ansage, mit Zähler („2-mal verschoben“). Ist dann niemand zu Hause, wird sie gespeichert und kommt mit dem Briefing. „Erledigt“ (von irgendwem) oder `presence_notify.clear` mit der Kennung beendet sie für alle. Erinnerungen laufen immer als Priorität Normal.
+
+**Fragen (`presence_notify.ask`):** Ja/Nein (Standard), Auswahl (`answer_type: choice` mit `options`, im Push als Knöpfe, bei mehr als drei als Texteingabe), Zahl oder freier Text (Texteingabe im Push). Alexa fragt auf Wunsch im Raum mit der jüngsten Erkennung und ordnet die gesprochene Antwort zu. Passt eine Antwort nicht, wird mit Hinweis nachgefragt. Rückgabe: `answer` (`yes`/`no`/`answered`/`timeout`), `value` (die Antwort) und `by`. `text_answer` legt fest, was Alexa danach sagt (`{value}` = Antwort).
 
 **Automatisch entfernen:** Mit `tag` senden, später `presence_notify.clear` mit derselben Kennung – der Push verschwindet von allen Handys und die Meldung aus dem Speicher (z. B. „Balkontür offen“ → Tür zu).
 

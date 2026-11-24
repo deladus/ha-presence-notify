@@ -414,7 +414,7 @@ async def test_ask_nobody_home_forward_and_timeout(hass: HomeAssistant) -> None:
     fwd = [c for c in calls["push"] if "passed on" in c.data.get("message", "")]
     assert len(fwd) == 1
     result = await task
-    assert result == {"answer": "timeout", "by": ""}
+    assert result == {"answer": "timeout", "value": None, "by": ""}
 
 
 async def test_ask_via_alexa(hass: HomeAssistant, monkeypatch) -> None:
@@ -442,7 +442,7 @@ async def test_ask_via_alexa(hass: HomeAssistant, monkeypatch) -> None:
     hass.bus.async_fire("alexa_actionable_notification",
                         {"event_id": variables["event_id"], "event_response_type": "ResponseNo"})
     result = await task
-    assert result == {"answer": "no", "by": "Alexa"}
+    assert result == {"answer": "no", "value": "no", "by": "Alexa"}
     assert alexa and alexa[-1].data["data"]["type"] == "tts"
 
 
@@ -1353,3 +1353,133 @@ async def test_reminder_survives_reload(hass: HomeAssistant, freezer) -> None:
     hass.bus.async_fire("mobile_app_notification_action", {"action": acts[0]["action"]})
     await hass.async_block_till_done()
     assert entry.runtime_data._reminders == {}
+
+
+def _setup_alexa_ask(hass, monkeypatch):
+    script_calls: list[ServiceCall] = []
+    alexa: list[ServiceCall] = []
+
+    async def script_turn_on(call):
+        script_calls.append(call)
+
+    async def alexa_notify(call):
+        alexa.append(call)
+    hass.services.async_register("script", "turn_on", script_turn_on)
+    hass.services.async_register("notify", "alexa_media", alexa_notify)
+    _quiet(monkeypatch, False)
+    return script_calls, alexa
+
+
+def test_match_option_and_parse_number() -> None:
+    from custom_components.presence_notify.manager import _match_option, _parse_number
+    opts = ["Projektor", "Fernseher"]
+    assert _match_option("projektor", opts) == "Projektor"
+    assert _match_option("über den Fernseher bitte", opts) == "Fernseher"
+    assert _match_option("Projecktor", opts) == "Projektor"
+    assert _match_option("2", opts) == "Fernseher"
+    assert _match_option("Radio", opts) is None
+    assert _match_option("Küche", ["Kueche", "Bad"]) == "Kueche"
+    assert _parse_number(3) == 3 and _parse_number("2,5") == 2.5
+    assert _parse_number("etwa 20 Grad") == 20 and _parse_number("viele") is None
+    assert _parse_number(True) is None
+
+
+async def test_ask_choice_with_buttons(hass: HomeAssistant) -> None:
+    calls = _register_services(hass)
+    await _setup(hass, home=True)
+    task = await _ask_task(hass, question="Projektor oder Fernseher?",
+                           answer_type="choice", options=["Projektor", "Fernseher"])
+    await asyncio.sleep(0.05)
+    pushes = _pushes(calls, "Projektor oder Fernseher?")
+    assert len(pushes) == 2
+    actions = pushes[0].data["data"]["actions"]
+    assert [a["title"] for a in actions] == ["Projektor", "Fernseher"]
+    hass.bus.async_fire("mobile_app_notification_action", {"action": actions[1]["action"]})
+    result = await task
+    assert result == {"answer": "answered", "value": "Fernseher", "by": ""}
+    assert any("answered: Fernseher" in c.data.get("message", "") for c in calls["push"])
+
+
+async def test_ask_choice_many_options_text_input_and_hint(hass: HomeAssistant) -> None:
+    calls = _register_services(hass)
+    await _setup(hass, home=True)
+    opts = ["Wohnzimmer", "Küche", "Büro", "Loft"]
+    task = await _ask_task(hass, question="Wo?", answer_type="choice", options=opts)
+    await asyncio.sleep(0.05)
+    push = [c for c in calls["push"] if c.data.get("message", "").startswith("Wo?")][0]
+    assert "Options: Wohnzimmer, Küche, Büro, Loft" in push.data["message"]
+    [action] = push.data["data"]["actions"]
+    assert action["behavior"] == "textInput"
+    hass.bus.async_fire("mobile_app_notification_action",
+                        {"action": action["action"], "reply_text": "Garage"})
+    await asyncio.sleep(0.05)
+    assert any("Please reply with one of the options" in c.data.get("message", "")
+               for c in calls["push"])
+    assert not task.done()
+    hass.bus.async_fire("mobile_app_notification_action",
+                        {"action": action["action"], "reply_text": "kueche"})
+    result = await task
+    assert result["answer"] == "answered" and result["value"] == "Küche"
+
+
+async def test_ask_number_via_alexa_with_retry(hass: HomeAssistant, monkeypatch) -> None:
+    calls = _register_services(hass)
+    script_calls, alexa = _setup_alexa_ask(hass, monkeypatch)
+    await _setup(hass, home=True, ask_alexa=True, ask_alexa_script="script.alexa_frage")
+    hass.states.async_set("binary_sensor.kueche", "on")
+    task = await _ask_task(hass, question="Wie viele Grad?", answer_type="number",
+                           text_answer="Ich stelle {value} Grad ein.")
+    await asyncio.sleep(0.05)
+    push = _pushes(calls, "Wie viele Grad?")[0]
+    assert push.data["data"]["actions"][0]["behavior"] == "textInput"
+    event_id = script_calls[0].data["variables"]["event_id"]
+    hass.bus.async_fire("alexa_actionable_notification", {
+        "event_id": event_id, "event_response_type": "ResponseString", "event_response": "warm"})
+    await asyncio.sleep(0.05)
+    assert len(script_calls) == 2
+    assert script_calls[1].data["variables"]["text"].startswith("Sorry, I did not understand")
+    hass.bus.async_fire("alexa_actionable_notification", {
+        "event_id": event_id, "event_response_type": "ResponseNumeric", "event_response": "21.5"})
+    result = await task
+    assert result == {"answer": "answered", "value": 21.5, "by": "Alexa"}
+    assert alexa[-1].data["message"] == "Ich stelle 21.5 Grad ein."
+    assert any(c.data.get("message") == "Answered via Alexa: 21.5." for c in calls["push"])
+
+
+async def test_ask_text_via_push_reply(hass: HomeAssistant) -> None:
+    calls = _register_services(hass)
+    await _setup(hass, home=False)
+    task = await _ask_task(hass, question="Was fehlt?", answer_type="text")
+    await asyncio.sleep(0.05)
+    push = _pushes(calls, "Was fehlt?")[0]
+    titles = [a["title"] for a in push.data["data"]["actions"]]
+    assert titles == ["Reply", "Pass on"]
+    hass.bus.async_fire("mobile_app_notification_action", {
+        "action": push.data["data"]["actions"][0]["action"], "reply_text": "  Milch  "})
+    result = await task
+    assert result["value"] == "Milch"
+
+
+async def test_ask_choice_needs_options(hass: HomeAssistant) -> None:
+    import pytest
+    from homeassistant.exceptions import ServiceValidationError
+    _register_services(hass)
+    await _setup(hass, home=True)
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(DOMAIN, "ask", {
+            "title": "T", "question": "Q", "answer_type": "choice", "options": ["nur eine"]},
+            blocking=True, return_response=True)
+
+
+async def test_ask_yes_no_info_via_alexa_wording(hass: HomeAssistant, monkeypatch) -> None:
+    calls = _register_services(hass)
+    script_calls, _alexa = _setup_alexa_ask(hass, monkeypatch)
+    await _setup(hass, home=True, ask_alexa=True, ask_alexa_script="script.alexa_frage")
+    hass.states.async_set("binary_sensor.kueche", "on")
+    task = await _ask_task(hass)
+    await asyncio.sleep(0.05)
+    hass.bus.async_fire("alexa_actionable_notification", {
+        "event_id": script_calls[0].data["variables"]["event_id"],
+        "event_response_type": "ResponseYes"})
+    await task
+    assert any(c.data.get("message") == "Decided via Alexa: yes." for c in calls["push"])

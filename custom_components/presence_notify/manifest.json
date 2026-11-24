@@ -19,5 +19,5 @@
   "issue_tracker": "https://github.com/deladus/ha-presence-notify/issues",
   "requirements": [],
   "single_config_entry": true,
-  "version": "0.5.0b1"
+  "version": "0.6.0b1"
 }

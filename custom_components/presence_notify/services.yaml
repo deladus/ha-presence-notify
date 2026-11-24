@@ -168,3 +168,25 @@ ask:
         entity:
           domain: media_player
           multiple: true
+    answer_type:
+      required: false
+      default: yes_no
+      selector:
+        select:
+          translation_key: answer_type
+          options:
+            - yes_no
+            - choice
+            - number
+            - text
+    options:
+      required: false
+      example: '["Projector", "TV"]'
+      selector:
+        text:
+          multiple: true
+    text_answer:
+      required: false
+      example: "All right, starting on the {value}."
+      selector:
+        text:

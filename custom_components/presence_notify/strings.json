@@ -237,6 +237,9 @@
   "exceptions": {
     "not_loaded": {
       "message": "Domestic Intelligence Service is not set up."
+    },
+    "choice_needs_options": {
+      "message": "For the answer type Choice, at least two options are needed."
     }
   },
   "services": {
@@ -332,7 +335,7 @@
     },
     "ask": {
       "name": "Ask",
-      "description": "Ask everyone at home a yes/no question by push (with buttons) and, if enabled, by Alexa in the room where someone is detected. The first answer wins. Returns answer (yes/no/timeout) and by.",
+      "description": "Asks everyone at home a question by push and – if enabled – by Alexa in the room where someone is detected: yes/no, a choice, a number or free text. The first answer wins. Returns answer (yes/no/answered/timeout), value and by.",
       "fields": {
         "title": {
           "name": "Title",
@@ -357,6 +360,18 @@
         "speakers": {
           "name": "Speakers",
           "description": "Only ask on these speakers."
+        },
+        "answer_type": {
+          "name": "Answer type",
+          "description": "Yes/No (default) – buttons Yes and No. Choice – one of the options (as buttons, or as text input when there are more than three). Number – text input in the push, Alexa understands spoken numbers. Text – free text input in the push, Alexa passes on what was said. The response contains answer (yes/no/answered/timeout) and value (the answer itself)."
+        },
+        "options": {
+          "name": "Options",
+          "description": "For the answer type Choice: at least two options, e.g. Projector and TV. Typed or spoken answers are matched to the closest option; a number picks the option at that position (1 = first)."
+        },
+        "text_answer": {
+          "name": "Alexa reply to the answer",
+          "description": "For Choice, Number and Text: what Alexa says after answering her question. {value} is replaced by the answer. Default: 'All right: {value}.'"
         }
       }
     }
@@ -375,6 +390,14 @@
         "all": "Everyone",
         "present": "Present only",
         "absent": "Absent only"
+      }
+    },
+    "answer_type": {
+      "options": {
+        "yes_no": "Yes/No",
+        "choice": "Choice",
+        "number": "Number",
+        "text": "Text"
       }
     }
   },

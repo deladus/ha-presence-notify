@@ -15,6 +15,12 @@ from homeassistant.helpers.typing import ConfigType
 from .const import (
     ATTR_ACTIONS,
     ATTR_ANNOUNCEMENT,
+    ATTR_ANSWER_TYPE,
+    ATTR_OPTIONS,
+    ATTR_TEXT_ANSWER,
+    ANSWER_CHOICE,
+    ANSWER_TYPES,
+    ANSWER_YES_NO,
     ATTR_DATA,
     ATTR_IGNORE_QUIET,
     ATTR_MESSAGE,
@@ -87,6 +93,9 @@ ASK_SCHEMA = vol.Schema(
         vol.Optional(ATTR_TEXT_YES): cv.string,
         vol.Optional(ATTR_TEXT_NO): cv.string,
         vol.Optional(ATTR_SPEAKERS): cv.entity_ids,
+        vol.Optional(ATTR_ANSWER_TYPE, default=ANSWER_YES_NO): vol.In(ANSWER_TYPES),
+        vol.Optional(ATTR_OPTIONS): vol.All(cv.ensure_list, [cv.string]),
+        vol.Optional(ATTR_TEXT_ANSWER): cv.string,
     }
 )
 DELIVER_SCHEMA = vol.Schema({vol.Optional(ATTR_SPEAKERS): cv.entity_ids})
@@ -144,6 +153,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     async def _ask(call: ServiceCall) -> ServiceResponse:
         data = call.data
+        answer_type = data.get(ATTR_ANSWER_TYPE, ANSWER_YES_NO)
+        options = [o for o in data.get(ATTR_OPTIONS) or [] if str(o).strip()]
+        if answer_type == ANSWER_CHOICE and len(options) < 2:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="choice_needs_options"
+            )
         return await _manager(hass).async_ask(
             data[ATTR_TITLE],
             data[ATTR_QUESTION],
@@ -151,6 +166,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             data.get(ATTR_TEXT_YES),
             data.get(ATTR_TEXT_NO),
             data.get(ATTR_SPEAKERS),
+            answer_type,
+            options,
+            data.get(ATTR_TEXT_ANSWER),
         )
 
     hass.services.async_register(

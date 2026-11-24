@@ -14,6 +14,7 @@ Responsibilities:
 from __future__ import annotations
 
 import asyncio
+import difflib
 from functools import partial
 import os
 import uuid
@@ -84,6 +85,10 @@ from .const import (
     PUSH_TO_ABSENT,
     PUSH_TO_ALL,
     PUSH_TO_PRESENT,
+    ANSWER_CHOICE,
+    ANSWER_NUMBER,
+    ANSWER_TEXT,
+    ANSWER_YES_NO,
     SIGNAL_UPDATE,
     STORAGE_KEY,
     STORAGE_VERSION,
@@ -120,6 +125,22 @@ TEXTS = {
         "forwarded": "(von {name} weitergegeben)",
         "decided": "{who} hat entschieden: {result}.",
         "by_alexa": "Per Alexa entschieden",
+        "decided_alexa": "Per Alexa entschieden: {result}.",
+        "answered": "{who} hat geantwortet: {value}.",
+        "answered_alexa": "Per Alexa geantwortet: {value}.",
+        "ok_answer": "Alles klar: {value}.",
+        "late_answered": "Danke, {who} hat bereits geantwortet: {value}.",
+        "late_answered_anon": "Danke, es wurde bereits geantwortet: {value}.",
+        "not_understood": "Das habe ich nicht verstanden.",
+        "reply": "Antworten",
+        "send": "Senden",
+        "options": "Möglichkeiten: {options}",
+        "placeholder_choice": "Eine der Möglichkeiten",
+        "placeholder_number": "Zahl",
+        "placeholder_text": "Antwort",
+        "hint_choice": "Bitte eine der Möglichkeiten antworten: {options}",
+        "hint_number": "Bitte mit einer Zahl antworten.",
+        "decimal": ",",
         "result_yes": "ja",
         "result_no": "nein",
         "ok_yes": "Alles klar.",
@@ -168,6 +189,22 @@ TEXTS = {
         "forwarded": "(passed on by {name})",
         "decided": "{who} decided: {result}.",
         "by_alexa": "Decided via Alexa",
+        "decided_alexa": "Decided via Alexa: {result}.",
+        "answered": "{who} answered: {value}.",
+        "answered_alexa": "Answered via Alexa: {value}.",
+        "ok_answer": "All right: {value}.",
+        "late_answered": "Thanks, {who} already answered: {value}.",
+        "late_answered_anon": "Thanks, it was already answered: {value}.",
+        "not_understood": "Sorry, I did not understand that.",
+        "reply": "Reply",
+        "send": "Send",
+        "options": "Options: {options}",
+        "placeholder_choice": "One of the options",
+        "placeholder_number": "Number",
+        "placeholder_text": "Answer",
+        "hint_choice": "Please reply with one of the options: {options}",
+        "hint_number": "Please reply with a number.",
+        "decimal": ".",
         "result_yes": "yes",
         "result_no": "no",
         "ok_yes": "All right.",
@@ -209,6 +246,56 @@ TEXTS = {
         "vol_down": "turn the volume down by {n}",
     },
 }
+
+_UMLAUTS = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"})
+_NUMBER_RE = re.compile(r"-?\d+(?:[.,]\d+)?")
+
+
+def _norm(text: Any) -> str:
+    """Lower case, umlauts spelled out, punctuation removed, single spaces."""
+    text = str(text).lower().translate(_UMLAUTS)
+    text = re.sub(r"[^\w\s]", " ", text)
+    return " ".join(text.split())
+
+
+def _match_option(value: Any, options: list[str]) -> str | None:
+    """Find the option meant by a spoken or typed answer.
+
+    Exact match, then a number as position (1 = first option), then a unique
+    partial match, then the closest spelling.
+    """
+    if value is None or not options:
+        return None
+    wanted = _norm(value)
+    if not wanted:
+        return None
+    normed = [_norm(o) for o in options]
+    if wanted in normed:
+        return options[normed.index(wanted)]
+    if wanted.isdigit() and 1 <= int(wanted) <= len(options):
+        return options[int(wanted) - 1]
+    partial = [o for o, n in zip(options, normed) if n and (n in wanted or wanted in n)]
+    if len(partial) == 1:
+        return partial[0]
+    close = difflib.get_close_matches(wanted, normed, n=1, cutoff=0.6)
+    if close:
+        return options[normed.index(close[0])]
+    return None
+
+
+def _parse_number(value: Any) -> int | float | None:
+    """Number from an answer: 3, "3", "2,5", "etwa 20 Grad" -> 20."""
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (int, float)):
+        number = float(value)
+    else:
+        found = _NUMBER_RE.search(str(value))
+        if not found:
+            return None
+        number = float(found.group().replace(",", "."))
+    return int(number) if number.is_integer() else number
+
 
 _NON_LATIN1 = re.compile(r"[^\x00-\xFF]")
 CAMERA_PROXY_PREFIX = "/api/camera_proxy/"
@@ -1552,15 +1639,25 @@ class PresenceNotifyManager:
         text_yes: str | None = None,
         text_no: str | None = None,
         speakers: list[str] | None = None,
+        answer_type: str = ANSWER_YES_NO,
+        options: list[str] | None = None,
+        text_answer: str | None = None,
     ) -> dict[str, Any]:
-        """Ask yes/no by push (and Alexa if enabled). First answer wins.
+        """Ask by push (and Alexa if enabled). First answer wins.
 
-        Returns {"answer": "yes"|"no"|"timeout", "by": <name or "Alexa" or "">}.
+        ``answer_type``: yes_no (default), choice (one of ``options``),
+        number or text. Returns {"answer": "yes"|"no"|"answered"|"timeout",
+        "value": <yes/no, option, number or text, None on timeout>,
+        "by": <name or "Alexa" or "">}.
         """
         t = self.texts
+        kind_of = answer_type or ANSWER_YES_NO
+        opts = [str(o).strip() for o in (options or []) if str(o).strip()]
         ask_id = uuid.uuid4().hex[:10]
         tag = f"{DOMAIN}_ask_{ask_id}"
         a_yes, a_no, a_fwd = f"PN_YES_{ask_id}", f"PN_NO_{ask_id}", f"PN_FWD_{ask_id}"
+        a_reply = f"PN_REPLY_{ask_id}"
+        a_opts = [f"PN_OPT{i}_{ask_id}" for i in range(len(opts))]
 
         home = self.persons_home() if self.someone_home() else []
         forwarded_to: list[dict[str, str]] = []
@@ -1572,35 +1669,98 @@ class PresenceNotifyManager:
             can_forward = len(self.persons) > 1
         others = [p for p in self.persons if p not in asked]
 
+        def _option_buttons(with_forward: bool) -> bool:
+            # Android shows at most three buttons
+            return kind_of == ANSWER_CHOICE and len(opts) + (1 if with_forward else 0) <= 3
+
         def _actions(with_forward: bool) -> list[dict[str, str]]:
-            acts = [{"action": a_yes, "title": t["yes"]}, {"action": a_no, "title": t["no"]}]
+            if kind_of == ANSWER_YES_NO:
+                acts = [{"action": a_yes, "title": t["yes"]}, {"action": a_no, "title": t["no"]}]
+            elif _option_buttons(with_forward):
+                acts = [{"action": a, "title": o} for a, o in zip(a_opts, opts)]
+            else:
+                acts = [
+                    {
+                        "action": a_reply,
+                        "title": t["reply"],
+                        "behavior": "textInput",
+                        "textInputButtonTitle": t["send"],
+                        "textInputPlaceholder": t[f"placeholder_{kind_of}"],
+                    }
+                ]
             if with_forward:
                 acts.append({"action": a_fwd, "title": t["forward"]})
             return acts
 
+        def _message(message: str, with_forward: bool) -> str:
+            if kind_of == ANSWER_CHOICE and not _option_buttons(with_forward):
+                return f"{message}\n{t['options'].format(options=', '.join(opts))}"
+            return message
+
         async def _push_to(persons: list[dict[str, str]], message: str, with_forward: bool) -> None:
             data = _with_priority({"tag": tag, "actions": _actions(with_forward)})
             for person in persons:
-                await self._notify_person(person, title, message, data)
+                await self._notify_person(person, title, _message(message, with_forward), data)
 
-        answer: asyncio.Future[tuple[str, str]] = self.hass.loop.create_future()
+        def _interpret(raw: Any) -> Any:
+            """Value of an open answer, None if it does not fit."""
+            if kind_of == ANSWER_CHOICE:
+                return _match_option(raw, opts)
+            if kind_of == ANSWER_NUMBER:
+                return _parse_number(raw)
+            text = str(raw).strip() if raw is not None else ""
+            return text or None
+
+        def _fmt(value: Any) -> str:
+            if isinstance(value, float):
+                return str(value).replace(".", t["decimal"])
+            return str(value)
+
+        answer: asyncio.Future[tuple[str, Any, str]] = self.hass.loop.create_future()
+
+        def _user_id(event: Event) -> str | None:
+            return event.context.user_id
 
         def _name_from_context(event: Event) -> str:
-            user_id = event.context.user_id
+            user_id = _user_id(event)
             for state in self.hass.states.async_all("person"):
                 if user_id and state.attributes.get("user_id") == user_id:
                     return state.name
             return ""
+
+        def _sender(event: Event) -> list[dict[str, str]]:
+            user_id = _user_id(event)
+            for person in asked + forwarded_to:
+                state = self.hass.states.get(person[CONF_PERSON])
+                if user_id and state and state.attributes.get("user_id") == user_id:
+                    return [person]
+            return asked + forwarded_to
 
         @callback
         def _on_push(event: Event) -> None:
             action = event.data.get("action")
             if answer.done():
                 return
-            if action == a_yes:
-                answer.set_result(("yes", _name_from_context(event)))
-            elif action == a_no:
-                answer.set_result(("no", _name_from_context(event)))
+            if kind_of == ANSWER_YES_NO and action in (a_yes, a_no):
+                result = "yes" if action == a_yes else "no"
+                answer.set_result((result, result, _name_from_context(event)))
+            elif action in a_opts:
+                answer.set_result(("answered", opts[a_opts.index(action)], _name_from_context(event)))
+            elif action == a_reply:
+                value = _interpret(event.data.get("reply_text"))
+                if value is not None:
+                    answer.set_result(("answered", value, _name_from_context(event)))
+                    return
+                # did not fit: ask the sender again with a hint
+                hint = (
+                    t["hint_choice"].format(options=", ".join(opts))
+                    if kind_of == ANSWER_CHOICE
+                    else t["hint_number"]
+                )
+                again = _sender(event)
+                self.hass.async_create_task(
+                    _push_to(again, f"{question}\n{hint}", can_forward and not forwarded_to)
+                )
             elif action == a_fwd and others and not forwarded_to:
                 forwarded_to.extend(others)
                 name = _name_from_context(event) or self._person_name(asked[0][CONF_PERSON])
@@ -1608,63 +1768,104 @@ class PresenceNotifyManager:
                     _push_to(others, f"{question} {t['forwarded'].format(name=name)}", False)
                 )
 
+        alexa_retries = [0]
+
         @callback
         def _on_alexa(event: Event) -> None:
             if event.data.get("event_id") != tag:
                 return
             kind = event.data.get("event_response_type")
-            if kind not in ("ResponseYes", "ResponseNo"):
+            if not kind or kind == "ResponseNone":
                 return
-            if not answer.done():
-                answer.set_result(("yes" if kind == "ResponseYes" else "no", "Alexa"))
-                return
-            # late Alexa answer after someone decided by push
-            result, by = answer.result()
-            if result in ("yes", "no") and by != "Alexa" and alexa_speaker:
-                res = t["result_yes_cap"] if result == "yes" else t["result_no_cap"]
-                text = (
-                    t["late_decided"].format(who=by, result=res)
-                    if by
-                    else t["late_decided_anon"].format(result=res)
-                )
+            if answer.done():
+                # late Alexa answer after someone answered by push
+                result, value, by = answer.result()
+                if result == "timeout" or by == "Alexa" or not alexa_speaker:
+                    return
+                if kind_of == ANSWER_YES_NO:
+                    if kind not in ("ResponseYes", "ResponseNo"):
+                        return
+                    res = t["result_yes_cap"] if result == "yes" else t["result_no_cap"]
+                    text = (
+                        t["late_decided"].format(who=by, result=res)
+                        if by
+                        else t["late_decided_anon"].format(result=res)
+                    )
+                else:
+                    text = (
+                        t["late_answered"].format(who=by, value=_fmt(value))
+                        if by
+                        else t["late_answered_anon"].format(value=_fmt(value))
+                    )
                 self.hass.async_create_task(self._alexa_say(alexa_speaker, text))
+                return
+            if kind_of == ANSWER_YES_NO:
+                if kind not in ("ResponseYes", "ResponseNo"):
+                    return
+                result = "yes" if kind == "ResponseYes" else "no"
+                answer.set_result((result, result, "Alexa"))
+                return
+            raw = event.data.get("event_response")
+            if kind in ("ResponseYes", "ResponseNo"):
+                raw = t["yes"] if kind == "ResponseYes" else t["no"]
+            value = _interpret(raw)
+            if value is not None:
+                answer.set_result(("answered", value, "Alexa"))
+                return
+            # not understood: Alexa asks once more
+            if alexa_speaker and alexa_retries[0] < 1:
+                alexa_retries[0] += 1
+                self.hass.async_create_task(
+                    _alexa_ask(f"{t['not_understood']} {question}")
+                )
+
+        alexa_speaker: str | None = None
+        asked_at: float | None = None
+
+        async def _alexa_ask(text: str) -> None:
+            nonlocal alexa_speaker, asked_at
+            script = self.options.get(CONF_ASK_SCRIPT)
+            if not script or not alexa_speaker:
+                return
+            try:
+                await self.hass.services.async_call(
+                    "script",
+                    "turn_on",
+                    {
+                        "entity_id": script,
+                        "variables": {
+                            "text": text,
+                            "event_id": tag,
+                            "alexa_device": alexa_speaker,
+                            "suppress_confirmation": "true",
+                        },
+                    },
+                    blocking=True,
+                )
+                asked_at = self.hass.loop.time()
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning("Alexa question via %s failed: %s", script, err)
+                alexa_speaker = None
 
         push_unsub = self.hass.bus.async_listen("mobile_app_notification_action", _on_push)
         alexa_unsub = self.hass.bus.async_listen("alexa_actionable_notification", _on_alexa)
-        asked_at: float | None = None
-        alexa_speaker: str | None = None
 
         await _push_to(asked, question, can_forward)
 
-        script = self.options.get(CONF_ASK_SCRIPT)
-        if self.options.get(CONF_ASK_ALEXA) and script and home and not self.in_quiet_hours():
+        if (
+            self.options.get(CONF_ASK_ALEXA)
+            and self.options.get(CONF_ASK_SCRIPT)
+            and home
+            and not self.in_quiet_hours()
+        ):
             alexa_speaker = self._detected_speaker(speakers)
-            if alexa_speaker:
-                try:
-                    await self.hass.services.async_call(
-                        "script",
-                        "turn_on",
-                        {
-                            "entity_id": script,
-                            "variables": {
-                                "text": question,
-                                "event_id": tag,
-                                "alexa_device": alexa_speaker,
-                                "suppress_confirmation": "true",
-                            },
-                        },
-                        blocking=True,
-                    )
-                    asked_at = self.hass.loop.time()
-                except Exception as err:  # noqa: BLE001
-                    _LOGGER.warning("Alexa question via %s failed: %s", script, err)
-                    alexa_speaker = None
+            await _alexa_ask(question)
 
         try:
             async with asyncio.timeout(max(float(timeout_min), 0.05) * 60):
-                result, by = await answer
+                result, value, by = await answer
         except TimeoutError:
-            result, by = "timeout", ""
+            result, value, by = "timeout", None, ""
         finally:
             push_unsub()
             # keep listening a little for a late Alexa answer (only if decided)
@@ -1678,7 +1879,10 @@ class PresenceNotifyManager:
 
         # Alexa confirms its own question
         if by == "Alexa" and alexa_speaker:
-            reply = (text_yes or t["ok_yes"]) if result == "yes" else (text_no or t["ok_no"])
+            if kind_of == ANSWER_YES_NO:
+                reply = (text_yes or t["ok_yes"]) if result == "yes" else (text_no or t["ok_no"])
+            else:
+                reply = (text_answer or t["ok_answer"]).replace("{value}", _fmt(value))
             try:
                 await self.hass.services.async_call(
                     "notify",
@@ -1689,12 +1893,21 @@ class PresenceNotifyManager:
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning("Alexa confirmation failed: %s", err)
 
-        # tell the others who decided, when several people were asked
-        if result in ("yes", "no") and len(asked + forwarded_to) > 1:
-            who = t["by_alexa"] if by == "Alexa" else (by or "?")
-            info = t["decided"].format(
-                who=who, result=t["result_yes"] if result == "yes" else t["result_no"]
-            )
+        # tell the others who answered, when several people were asked
+        if result != "timeout" and len(asked + forwarded_to) > 1:
+            if kind_of == ANSWER_YES_NO:
+                res = t["result_yes"] if result == "yes" else t["result_no"]
+                info = (
+                    t["decided_alexa"].format(result=res)
+                    if by == "Alexa"
+                    else t["decided"].format(who=by or "?", result=res)
+                )
+            else:
+                info = (
+                    t["answered_alexa"].format(value=_fmt(value))
+                    if by == "Alexa"
+                    else t["answered"].format(who=by or "?", value=_fmt(value))
+                )
             for person in asked + forwarded_to:
                 if by and self._person_name(person[CONF_PERSON]) == by:
                     continue
@@ -1702,7 +1915,7 @@ class PresenceNotifyManager:
                     person, title, info, _with_priority({"tag": f"{tag}_info"})
                 )
 
-        return {"answer": result, "by": by}
+        return {"answer": result, "value": value, "by": by}
 
     async def _notify_person(
         self, person: dict[str, str], title: str, message: str, data: dict[str, Any]

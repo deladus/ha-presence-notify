@@ -237,6 +237,9 @@
   "exceptions": {
     "not_loaded": {
       "message": "Heimischer Nachrichtendienst ist nicht eingerichtet."
+    },
+    "choice_needs_options": {
+      "message": "Für den Antworttyp Auswahl werden mindestens zwei Möglichkeiten gebraucht."
     }
   },
   "services": {
@@ -332,7 +335,7 @@
     },
     "ask": {
       "name": "Fragen",
-      "description": "Stellt allen, die zu Hause sind, eine Ja/Nein-Frage per Push (mit Knöpfen) und – wenn aktiviert – per Alexa im Raum, in dem jemand erkannt wird. Die erste Antwort gewinnt. Gibt answer (yes/no/timeout) und by zurück.",
+      "description": "Stellt allen, die zu Hause sind, eine Frage per Push und – wenn aktiviert – per Alexa im Raum, in dem jemand erkannt wird: Ja/Nein, Auswahl, Zahl oder freier Text. Die erste Antwort gewinnt. Gibt answer (yes/no/answered/timeout), value und by zurück.",
       "fields": {
         "title": {
           "name": "Titel",
@@ -357,6 +360,18 @@
         "speakers": {
           "name": "Lautsprecher",
           "description": "Nur auf diesen Lautsprechern fragen."
+        },
+        "answer_type": {
+          "name": "Antworttyp",
+          "description": "Ja/Nein (Standard) – Knöpfe Ja und Nein. Auswahl – eine der Möglichkeiten (als Knöpfe, bei mehr als drei als Texteingabe). Zahl – Texteingabe im Push, Alexa versteht gesprochene Zahlen. Text – freie Texteingabe im Push, Alexa gibt das Gesagte weiter. Die Antwort enthält answer (yes/no/answered/timeout) und value (die Antwort selbst)."
+        },
+        "options": {
+          "name": "Möglichkeiten",
+          "description": "Für den Antworttyp Auswahl: mindestens zwei Möglichkeiten, z. B. Projektor und Fernseher. Getippte oder gesprochene Antworten werden der ähnlichsten Möglichkeit zugeordnet; eine Zahl wählt die Möglichkeit an dieser Stelle (1 = erste)."
+        },
+        "text_answer": {
+          "name": "Alexa-Reaktion auf die Antwort",
+          "description": "Für Auswahl, Zahl und Text: was Alexa nach einer Antwort auf ihre Frage sagt. {value} wird durch die Antwort ersetzt. Standard: „Alles klar: {value}.“"
         }
       }
     }
@@ -375,6 +390,14 @@
         "all": "Alle",
         "present": "Nur Anwesende",
         "absent": "Nur Abwesende"
+      }
+    },
+    "answer_type": {
+      "options": {
+        "yes_no": "Ja/Nein",
+        "choice": "Auswahl",
+        "number": "Zahl",
+        "text": "Text"
       }
     }
   },

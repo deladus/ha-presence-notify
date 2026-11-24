@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0b1 (beta)
+- `presence_notify.ask`: open answers with the new field `answer_type`
+  - **Choice** (`choice` + `options`): one push button per option (up to three), more options as text input with the options listed; Alexa's spoken answer is matched to the closest option (a number picks the option at that position)
+  - **Number** (`number`): text input in the push, spoken number via Alexa
+  - **Text** (`text`): free text input in the push, Alexa passes on what was said
+  - An answer that does not fit is asked again (push with a hint, Alexa once more)
+  - New field `text_answer`: what Alexa says after the answer, `{value}` is replaced
+  - The response now also contains `value`; `answer` is `answered` for the new types. Yes/no questions work as before
+- Fix: the info to the others after an Alexa answer said "Decided via Alexa decided: yes" – now "Decided via Alexa: yes."
+
 ## 0.5.0b1 (beta)
 - `presence_notify.send`: new fields `reminder` and `remind_every` (minutes, default 60). The push gets "Done" and "Remind me later"
   - **Remind me later:** the push is removed from all phones and the reminder comes again after `remind_every` minutes – push and announcement, with a counter ("snoozed 2 times"). If nobody is home by then, it is stored and comes with the briefing
