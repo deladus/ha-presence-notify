@@ -363,7 +363,7 @@
         },
         "answer_type": {
           "name": "Answer type",
-          "description": "Yes/No (default) – buttons Yes and No. Choice – one of the options (as buttons, or as text input when there are more than three). Number – text input in the push, Alexa understands spoken numbers. Text – free text input in the push, Alexa passes on what was said. The response contains answer (yes/no/answered/timeout) and value (the answer itself)."
+          "description": "Yes/No (default) – buttons Yes and No. Choice – one of the options (as buttons, or as text input when there are more than three). Number – text input in the push, Alexa understands spoken numbers. Text – free text input in the push, Alexa passes on what was said. The response contains answer (yes/no/answered/timeout) and value (the answer itself). Number questions via Alexa: say just the number – with a unit (\"twenty degrees\") the Alexa skill sends a date instead, then Alexa asks once more."
         },
         "options": {
           "name": "Options",

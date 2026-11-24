@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0b2 (beta)
+- Fix `presence_notify.ask` with numbers via Alexa: with a unit ("twenty degrees") the Alexa skill sends today's date instead of the number, and the integration took the day as the answer (24 instead of 20). A date or duration is no longer read as a number; Alexa asks once more: "Please say just the number, without a unit"
+- Text questions: a date from the Alexa skill is passed on as readable text (e.g. 24.11.2026) instead of raw JSON
+- Debug log: type and value of every Alexa answer to a question
+- README and field description: say numbers without a unit
+
 ## 0.6.0b1 (beta)
 - `presence_notify.ask`: open answers with the new field `answer_type`
   - **Choice** (`choice` + `options`): one push button per option (up to three), more options as text input with the options listed; Alexa's spoken answer is matched to the closest option (a number picks the option at that position)

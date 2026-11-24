@@ -1483,3 +1483,39 @@ async def test_ask_yes_no_info_via_alexa_wording(hass: HomeAssistant, monkeypatc
         "event_response_type": "ResponseYes"})
     await task
     assert any(c.data.get("message") == "Decided via Alexa: yes." for c in calls["push"])
+
+
+async def test_ask_number_ignores_alexa_date(hass: HomeAssistant, monkeypatch) -> None:
+    _register_services(hass)
+    script_calls, _alexa = _setup_alexa_ask(hass, monkeypatch)
+    await _setup(hass, home=True, ask_alexa=True, ask_alexa_script="script.alexa_frage")
+    hass.states.async_set("binary_sensor.kueche", "on")
+    task = await _ask_task(hass, question="Wie viel Grad?", answer_type="number")
+    await asyncio.sleep(0.05)
+    event_id = script_calls[0].data["variables"]["event_id"]
+    date = '{"day": "24", "month": "11", "year": "2026", "seconds": null, "minute": null, "hour": null}'
+    hass.bus.async_fire("alexa_actionable_notification", {
+        "event_id": event_id, "event_response_type": "ResponseDateTime", "event_response": date})
+    await asyncio.sleep(0.05)
+    assert not task.done()
+    assert len(script_calls) == 2
+    assert "without a unit" in script_calls[1].data["variables"]["text"]
+    hass.bus.async_fire("alexa_actionable_notification", {
+        "event_id": event_id, "event_response_type": "ResponseNumeric", "event_response": "20"})
+    result = await task
+    assert result["value"] == 20
+
+
+async def test_ask_text_alexa_date_readable(hass: HomeAssistant, monkeypatch) -> None:
+    _register_services(hass)
+    script_calls, _alexa = _setup_alexa_ask(hass, monkeypatch)
+    await _setup(hass, home=True, ask_alexa=True, ask_alexa_script="script.alexa_frage")
+    hass.states.async_set("binary_sensor.kueche", "on")
+    task = await _ask_task(hass, question="Wann?", answer_type="text")
+    await asyncio.sleep(0.05)
+    hass.bus.async_fire("alexa_actionable_notification", {
+        "event_id": script_calls[0].data["variables"]["event_id"],
+        "event_response_type": "ResponseDateTime",
+        "event_response": '{"day": "5", "month": "12", "year": "2026", "hour": "18", "minute": "30"}'})
+    result = await task
+    assert result["value"] == "05.12.2026 18:30"

@@ -221,6 +221,7 @@ The question goes by push to everyone at home (nobody home: to the first person,
 
 - Typed or spoken answers for `choice` are matched to the closest option (spelling, umlauts, partial words); a number picks the option at that position (1 = first).
 - An answer that does not fit (no number, no option): the push asks again with a hint, Alexa asks once more.
+- **Numbers via Alexa: say just the number.** With a unit ("twenty degrees") the Alexa Actionable Notifications skill sends a date (today's) instead of the number. The integration never reads a number from a date or duration; Alexa asks once more ("Please say just the number, without a unit"). For text questions a date is passed on as readable text (e.g. 24.11.2026).
 - `text_answer`: what Alexa says after answering her question, `{value}` is replaced (default "All right: {value}."). For yes/no use `text_yes` / `text_no` as before.
 - Response: `answer` is `yes`/`no` (yes/no), `answered` (other types) or `timeout`; `value` holds the answer; `by` is the person or `Alexa`.
 - Text input in the push needs the Home Assistant Companion app (Android and iOS). With the Alexa Actionable Notifications skill, numbers and free text sometimes arrive as a different response type – the integration accepts both.
@@ -272,7 +273,7 @@ Der Heimische Nachrichtendienst schickt Benachrichtigungen an alle, die zu Hause
 
 **Erinnerungen:** Mit `reminder: true` bekommt der Push die Knöpfe „Erledigt“ und „Später erinnern“. „Später erinnern“ nimmt den Push von allen Handys und sendet die Erinnerung nach `remind_every` Minuten (Standard 60) erneut – Push und Ansage, mit Zähler („2-mal verschoben“). Ist dann niemand zu Hause, wird sie gespeichert und kommt mit dem Briefing. „Erledigt“ (von irgendwem) oder `presence_notify.clear` mit der Kennung beendet sie für alle. Erinnerungen laufen immer als Priorität Normal.
 
-**Fragen (`presence_notify.ask`):** Ja/Nein (Standard), Auswahl (`answer_type: choice` mit `options`, im Push als Knöpfe, bei mehr als drei als Texteingabe), Zahl oder freier Text (Texteingabe im Push). Alexa fragt auf Wunsch im Raum mit der jüngsten Erkennung und ordnet die gesprochene Antwort zu. Passt eine Antwort nicht, wird mit Hinweis nachgefragt. Rückgabe: `answer` (`yes`/`no`/`answered`/`timeout`), `value` (die Antwort) und `by`. `text_answer` legt fest, was Alexa danach sagt (`{value}` = Antwort).
+**Fragen (`presence_notify.ask`):** Ja/Nein (Standard), Auswahl (`answer_type: choice` mit `options`, im Push als Knöpfe, bei mehr als drei als Texteingabe), Zahl oder freier Text (Texteingabe im Push). Alexa fragt auf Wunsch im Raum mit der jüngsten Erkennung und ordnet die gesprochene Antwort zu. Passt eine Antwort nicht, wird mit Hinweis nachgefragt. Bei Zahl-Fragen per Alexa nur die Zahl sagen: Mit Einheit („zwanzig Grad“) schickt der Alexa-Skill ein Datum statt der Zahl – die Integration fragt dann einmal nach. Rückgabe: `answer` (`yes`/`no`/`answered`/`timeout`), `value` (die Antwort) und `by`. `text_answer` legt fest, was Alexa danach sagt (`{value}` = Antwort).
 
 **Automatisch entfernen:** Mit `tag` senden, später `presence_notify.clear` mit derselben Kennung – der Push verschwindet von allen Handys und die Meldung aus dem Speicher (z. B. „Balkontür offen“ → Tür zu).
 

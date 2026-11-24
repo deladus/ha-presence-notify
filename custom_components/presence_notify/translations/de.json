@@ -363,7 +363,7 @@
         },
         "answer_type": {
           "name": "Antworttyp",
-          "description": "Ja/Nein (Standard) – Knöpfe Ja und Nein. Auswahl – eine der Möglichkeiten (als Knöpfe, bei mehr als drei als Texteingabe). Zahl – Texteingabe im Push, Alexa versteht gesprochene Zahlen. Text – freie Texteingabe im Push, Alexa gibt das Gesagte weiter. Die Antwort enthält answer (yes/no/answered/timeout) und value (die Antwort selbst)."
+          "description": "Ja/Nein (Standard) – Knöpfe Ja und Nein. Auswahl – eine der Möglichkeiten (als Knöpfe, bei mehr als drei als Texteingabe). Zahl – Texteingabe im Push, Alexa versteht gesprochene Zahlen. Text – freie Texteingabe im Push, Alexa gibt das Gesagte weiter. Die Antwort enthält answer (yes/no/answered/timeout) und value (die Antwort selbst). Zahl-Fragen per Alexa: nur die Zahl sagen – mit Einheit („zwanzig Grad“) schickt der Alexa-Skill stattdessen ein Datum, dann fragt Alexa einmal nach."
         },
         "options": {
           "name": "Möglichkeiten",

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import difflib
+import json
 from functools import partial
 import os
 import uuid
@@ -132,6 +133,7 @@ TEXTS = {
         "late_answered": "Danke, {who} hat bereits geantwortet: {value}.",
         "late_answered_anon": "Danke, es wurde bereits geantwortet: {value}.",
         "not_understood": "Das habe ich nicht verstanden.",
+        "not_understood_number": "Das habe ich nicht verstanden. Bitte sag nur die Zahl, ohne Einheit.",
         "reply": "Antworten",
         "send": "Senden",
         "options": "Möglichkeiten: {options}",
@@ -196,6 +198,7 @@ TEXTS = {
         "late_answered": "Thanks, {who} already answered: {value}.",
         "late_answered_anon": "Thanks, it was already answered: {value}.",
         "not_understood": "Sorry, I did not understand that.",
+        "not_understood_number": "Sorry, I did not understand that. Please say just the number, without a unit.",
         "reply": "Reply",
         "send": "Send",
         "options": "Options: {options}",
@@ -295,6 +298,29 @@ def _parse_number(value: Any) -> int | float | None:
             return None
         number = float(found.group().replace(",", "."))
     return int(number) if number.is_integer() else number
+
+
+_DATE_TYPES = ("ResponseDateTime", "ResponseDate", "ResponseTime", "ResponseDuration")
+
+
+def _format_datetime(raw: Any) -> str | None:
+    """Readable text from the skill's date/time answer, e.g. 24.11.2026 18:30."""
+    data = raw
+    if isinstance(raw, str):
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            return None
+    if not isinstance(data, dict):
+        return None
+    parts = []
+    day, month, year = data.get("day"), data.get("month"), data.get("year")
+    if day and month:
+        parts.append(f"{int(day):02d}.{int(month):02d}." + (str(year) if year else ""))
+    hour, minute = data.get("hour"), data.get("minute")
+    if hour is not None:
+        parts.append(f"{int(hour):02d}:{int(minute or 0):02d}")
+    return " ".join(parts) or None
 
 
 _NON_LATIN1 = re.compile(r"[^\x00-\xFF]")
@@ -1775,6 +1801,12 @@ class PresenceNotifyManager:
             if event.data.get("event_id") != tag:
                 return
             kind = event.data.get("event_response_type")
+            _LOGGER.debug(
+                "Alexa answer for %s: type=%s value=%r",
+                tag,
+                kind,
+                event.data.get("event_response"),
+            )
             if not kind or kind == "ResponseNone":
                 return
             if answer.done():
@@ -1808,6 +1840,10 @@ class PresenceNotifyManager:
             raw = event.data.get("event_response")
             if kind in ("ResponseYes", "ResponseNo"):
                 raw = t["yes"] if kind == "ResponseYes" else t["no"]
+            if kind in _DATE_TYPES:
+                # The skill turns e.g. "twenty degrees" into today's date:
+                # never read a number from that, show dates as readable text
+                raw = None if kind_of == ANSWER_NUMBER else (_format_datetime(raw) or raw)
             value = _interpret(raw)
             if value is not None:
                 answer.set_result(("answered", value, "Alexa"))
@@ -1815,9 +1851,8 @@ class PresenceNotifyManager:
             # not understood: Alexa asks once more
             if alexa_speaker and alexa_retries[0] < 1:
                 alexa_retries[0] += 1
-                self.hass.async_create_task(
-                    _alexa_ask(f"{t['not_understood']} {question}")
-                )
+                hint = t["not_understood_number"] if kind_of == ANSWER_NUMBER else t["not_understood"]
+                self.hass.async_create_task(_alexa_ask(f"{hint} {question}"))
 
         alexa_speaker: str | None = None
         asked_at: float | None = None
